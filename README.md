@@ -41,6 +41,22 @@ macOS 26 has a privacy control under System Settings → Menu Bar. If the app is
 
 The "Start at login" switch in Settings uses the system login-item service. Because the app is ad-hoc signed, macOS may ask you to approve it under System Settings → General → Login Items the first time.
 
+## Logs
+
+The app writes `~/Library/Logs/Stats/stats.log` (rotated at 5 MB, three old copies kept). Settings → Information has an "Open log folder" button. Every line has a timestamp, source file and line, level (`INF`/`ERR`/`DBG`) and module. Info and error lines are also mirrored to the unified log under subsystem `eu.exelban.Stats`, so Console.app shows them.
+
+What gets logged without `--debug`: a session header with version, macOS and chip; a `health` line every 10 minutes with resident memory, CPU time and thread count; module enable/disable; sensor discovery; sleep and wake; termination; and errors, rate-limited to one per minute per call site with a suppressed-repeat count.
+
+Useful scans after a long run:
+
+```sh
+grep ' ERR ' ~/Library/Logs/Stats/stats.log | sort | uniq -c | sort -rn | head
+grep 'health' ~/Library/Logs/Stats/stats.log | tail -20          # memory trend
+/usr/bin/log show --last 1d --predicate 'subsystem == "eu.exelban.Stats"' --style compact
+```
+
+Launch with `--debug` (or `defaults write eu.exelban.Stats debug_logging -bool true`) to also get reader setup and interval lines.
+
 ## Soak test
 
 `Scripts/soak.sh build/Stats.app 12` runs the app for 12 hours, samples memory, CPU time, file descriptors, child processes and Mach ports every five minutes, runs `leaks` at the end, and writes a pass/fail summary. The acceptance bar is under 5 MB of memory drift, zero child processes, and zero error lines on stdout.

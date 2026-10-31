@@ -60,6 +60,13 @@ fi
   echo "max child processes observed: $maxkids"
   errs=$(grep -ci "error" "$log" || true)
   echo "stdout lines: $(wc -l < "$log")  error lines: $errs"
+  applog="$HOME/Library/Logs/Stats/stats.log"
+  if [[ -f "$applog" ]]; then
+    since=$(grep -n '^==== ' "$applog" | tail -1 | cut -d: -f1)
+    tail -n +"${since:-1}" "$applog" > "$out/stats.log"
+    echo "app log lines this session: $(wc -l < "$out/stats.log")  ERR lines: $(grep -c ' ERR ' "$out/stats.log" || true)"
+    grep 'health' "$out/stats.log" | sed -n '1p;$p'
+  fi
   grep -E "leaks for|LEAK:" "$out/leaks.txt" 2>/dev/null | head -3
   pass=1
   (( drift_kb < 5120 )) || { echo "FAIL: rss drift >= 5 MB"; pass=0; }

@@ -209,12 +209,19 @@ class ApplicationSettings: NSStackView {
         statsVersion.isSelectable = true
         statsVersion.toolTip = "\(localizedString("Build number")) \(buildNumber)"
         
+        let logButton = NSButton(title: "Open log folder", target: self, action: #selector(self.openLogFolder))
+        logButton.bezelStyle = .rounded
+        logButton.controlSize = .small
+        logButton.toolTip = NextLog.logFileURL.path
+        
         container.addRow(with: [iconView])
         container.addRow(with: [statsName])
         container.addRow(with: [statsVersion])
+        container.addRow(with: [logButton])
         
         container.row(at: 1).height = 22
         container.row(at: 2).height = 20
+        container.row(at: 3).height = 28
         
         view.addArrangedSubview(container)
         
@@ -342,6 +349,10 @@ class ApplicationSettings: NSStackView {
                 Store.shared.export(to: url)
             }
         }
+    }
+    
+    @objc private func openLogFolder() {
+        NSWorkspace.shared.activateFileViewerSelecting([NextLog.logFileURL])
     }
     
     @objc private func resetSettings() {

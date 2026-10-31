@@ -162,14 +162,10 @@ internal class UsageReader: Reader<Network_Usage> {
         self.usage.bandwidth.upload = max(self.usage.bandwidth.upload, 0) // prevent negative upload value
         self.usage.bandwidth.download = max(self.usage.bandwidth.download, 0) // prevent negative download value
 
-        // drop one-shot counter jumps (e.g. on reconnect) that exceed what the link can physically deliver
+        // drop one-shot counter jumps that no link can deliver (100 Gbps). The negotiated link
+        // rate must NOT be used here: Wi-Fi reports a PHY rate that real throughput can exceed.
         let interval = self.interval ?? 1
-        let maxDelta: Int64 = {
-            if let rate = self.usage.interface?.transmitRate, rate > 0 {
-                return Int64(rate * 1_000_000 / 8 * 1.5 * interval) // 50% headroom over negotiated link rate
-            }
-            return Int64(12_500_000_000 * interval) // 100 Gbps fallback when link rate is unknown
-        }()
+        let maxDelta = Int64(12_500_000_000 * interval)
         if self.usage.bandwidth.upload > maxDelta { self.usage.bandwidth.upload = 0 }
         if self.usage.bandwidth.download > maxDelta { self.usage.bandwidth.download = 0 }
 

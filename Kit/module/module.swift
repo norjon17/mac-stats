@@ -131,7 +131,7 @@ open class Module {
         self.enabled = Store.shared.bool(key: "\(self.config.name)_state", defaultValue: self.config.defaultState)
         
         if !self.available {
-            debug("Module is not available", log: self.log)
+            info("Module is not available", log: self.log)
             
             if self.enabled {
                 self.enabled = false
@@ -195,7 +195,7 @@ open class Module {
             $0.terminate()
         }
         self.menuBar.disable()
-        debug("Module terminated", log: self.log)
+        info("Module terminated", log: self.log)
     }
     
     // function to call before module terminate
@@ -210,7 +210,7 @@ open class Module {
         self.startReaders()
         self.menuBar.enable()
         self.window?.setState(self.enabled)
-        debug("Module enabled", log: self.log)
+        info("Module enabled", log: self.log)
     }
     
     // set module state to disabled
@@ -229,7 +229,7 @@ open class Module {
         self.menuBar.disable()
         self.window?.setState(self.enabled)
         self.popup?.setIsVisible(false)
-        debug("Module disabled", log: self.log)
+        info("Module disabled", log: self.log)
     }
     
     public func setReaders(_ list: [Reader_p?]) {

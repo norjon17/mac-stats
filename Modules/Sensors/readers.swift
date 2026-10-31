@@ -94,7 +94,7 @@ internal class SensorsReader: Reader<Sensors_List> {
             kept.append(sensor)
         }
 
-        debug("Found \(kept.count) temperature sensors out of \(candidates.count) candidates", log: self.log)
+        info("Found \(kept.count) temperature sensors out of \(candidates.count) candidates", log: self.log)
 
         kept = self.initCalculatedSensors(kept) + kept
         return kept.sorted { (a, b) in

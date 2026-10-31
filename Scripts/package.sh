@@ -59,8 +59,17 @@ exit 0
 POST
 chmod +x "$tmp/scripts/postinstall"
 
+# Build from a root directory with an explicit component plist so the app is
+# NOT relocatable. By default Installer looks up any registered copy of the
+# bundle id (even one sitting in a build folder) and installs over that copy
+# instead of /Applications.
+mkdir -p "$tmp/root"
+cp -R "$app" "$tmp/root/$app_file"
+pkgbuild --analyze --root "$tmp/root" "$tmp/component.plist" >/dev/null
+/usr/libexec/PlistBuddy -c "Set :0:BundleIsRelocatable false" "$tmp/component.plist"
 component="$tmp/$name-component.pkg"
-pkgbuild --quiet --component "$app" --install-location /Applications \
+pkgbuild --quiet --root "$tmp/root" --component-plist "$tmp/component.plist" \
+  --install-location /Applications \
   --identifier "$bundle_id.pkg" --version "$version" \
   --scripts "$tmp/scripts" "$component"
 rm -f "$pkg"
@@ -74,6 +83,8 @@ expanded_component="$(find "$tmp/expanded" -maxdepth 1 -name '*.pkg' -type d | h
   || { echo "pkg verification failed: $app_file/Contents/Info.plist not in payload"; exit 1; }
 grep -q "com.apple.quarantine" "$expanded_component/Scripts/postinstall" \
   || { echo "pkg verification failed: postinstall script missing"; exit 1; }
+grep -q 'relocatable="false"' "$expanded_component/PackageInfo" \
+  || { echo "pkg verification failed: $app_file is still marked relocatable"; exit 1; }
 
 # --- Summary ---------------------------------------------------------------
 echo

@@ -2,6 +2,11 @@
 # Soak test: run the built app for N hours and sample its resource usage.
 #
 # usage: Scripts/soak.sh <path/to/mac-stats.app> [hours=12] [interval_sec=300]
+#        Scripts/soak.sh --pid <pid>               [hours=12] [interval_sec=300]
+#
+# With --pid the script samples an already running instance (for example the
+# one launched from /Applications) instead of starting its own, and leaves it
+# running at the end. stdout.log stays empty in that mode.
 #
 # Writes to ./soak-<timestamp>/:
 #   samples.csv   one row per interval: rss, vsz, cpu time, threads, fds, children, mach ports
@@ -13,20 +18,34 @@
 # zero child processes ever observed, zero lines matching /error/i in stdout.log.
 
 set -u
-app=${1:?path to mac-stats.app}
-hours=${2:-12}
-interval=${3:-300}
-bin="$app/Contents/MacOS/mac-stats"
-[[ -x "$bin" ]] || { echo "not executable: $bin"; exit 1; }
+attach=0
+if [[ "${1:-}" == "--pid" ]]; then
+  attach=1
+  pid=${2:?pid of a running mac-stats}
+  kill -0 "$pid" 2>/dev/null || { echo "no such process: $pid"; exit 1; }
+  shift 2
+else
+  app=${1:?path to mac-stats.app}
+  bin="$app/Contents/MacOS/mac-stats"
+  [[ -x "$bin" ]] || { echo "not executable: $bin"; exit 1; }
+  shift
+fi
+hours=${1:-12}
+interval=${2:-300}
 
 out="soak-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$out"
 samples="$out/samples.csv"
 log="$out/stdout.log"
 
-"$bin" > "$log" 2>&1 &
-pid=$!
-echo "started pid=$pid, sampling every ${interval}s for ${hours}h into $out"
+if (( attach )); then
+  : > "$log"
+  echo "attached to pid=$pid, sampling every ${interval}s for ${hours}h into $out"
+else
+  "$bin" > "$log" 2>&1 &
+  pid=$!
+  echo "started pid=$pid, sampling every ${interval}s for ${hours}h into $out"
+fi
 sleep 10
 
 echo "ts,rss_kb,vsz_kb,cpu_time,threads,fds,children,ports" > "$samples"
@@ -46,7 +65,7 @@ done
 
 if kill -0 $pid 2>/dev/null; then
   leaks $pid > "$out/leaks.txt" 2>&1 || true
-  kill $pid
+  (( attach )) || kill $pid
 fi
 
 # ---- summary ----

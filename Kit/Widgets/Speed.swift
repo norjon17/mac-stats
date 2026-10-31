@@ -241,7 +241,6 @@ public class SpeedWidget: WidgetWrapper {
     }
     
     private func drawValue(_ value: Int64, offset: CGPoint, color: NSColor) -> CGFloat {
-        let rowWidth: CGFloat = self.unitsState ? 58 : 32
         let height: CGFloat = self.frame.height
         let style = NSMutableParagraphStyle()
         style.alignment = self.valueAlignment
@@ -253,11 +252,10 @@ public class SpeedWidget: WidgetWrapper {
             NSAttributedString.Key.paragraphStyle: style
         ]
         
+        let text = Units(bytes: value).getReadableSpeed(base: base, unit: self.speedUnit, omitUnits: !self.unitsState)
+        let rowWidth = self.fittedRowWidth([text], attributes: inputStringAttributes, minimum: self.unitsState ? 36 : 24)
         let rect = CGRect(x: offset.x, y: (height-size)/2 + offset.y + 1, width: rowWidth - (Constants.Widget.margin.x*2), height: size)
-        let value = NSAttributedString.init(
-            string: Units(bytes: value).getReadableSpeed(base: base, unit: self.speedUnit, omitUnits: !self.unitsState),
-            attributes: inputStringAttributes
-        )
+        let value = NSAttributedString.init(string: text, attributes: inputStringAttributes)
         value.draw(with: rect)
         
         return rowWidth
@@ -330,6 +328,14 @@ public class SpeedWidget: WidgetWrapper {
         return 10
     }
     
+    /// Width of a value box that fits `strings` drawn with `attributes`, plus horizontal margins.
+    /// Rounded up to 6 pt steps so small per-tick changes do not move the menu bar.
+    private func fittedRowWidth(_ strings: [String], attributes: [NSAttributedString.Key: Any], minimum: CGFloat) -> CGFloat {
+        let widest = strings.map { NSAttributedString(string: $0, attributes: attributes).size().width }.max() ?? 0
+        let needed = ceil(widest) + Constants.Widget.margin.x*2 + 1
+        return max(minimum, ceil(needed / 6) * 6)
+    }
+    
     // MARK: - two rows
     
     private func drawTwoRows() -> CGFloat {
@@ -345,7 +351,6 @@ public class SpeedWidget: WidgetWrapper {
         }
         
         if self.valueState {
-            let rowWidth: CGFloat = self.unitsState ? 48 : 30
             let rowHeight: CGFloat = self.frame.height / 2
             let style = NSMutableParagraphStyle()
             style.alignment = self.valueAlignment
@@ -364,18 +369,16 @@ public class SpeedWidget: WidgetWrapper {
             let inputY: CGFloat = self.displayValueState == "io" ? rowHeight + 1 : 1
             let outputY: CGFloat = self.displayValueState == "io" ? 1 : rowHeight + 1
             
+            let inputText = Units(bytes: self.inputValue).getReadableSpeed(base: base, unit: self.speedUnit, omitUnits: !self.unitsState)
+            let outputText = Units(bytes: self.outputValue).getReadableSpeed(base: base, unit: self.speedUnit, omitUnits: !self.unitsState)
+            let rowWidth = self.fittedRowWidth([inputText, outputText], attributes: inputStringAttributes, minimum: self.unitsState ? 30 : 18)
+            
             var rect = CGRect(x: Constants.Widget.margin.x + x, y: inputY, width: rowWidth - (Constants.Widget.margin.x*2), height: rowHeight)
-            let input = NSAttributedString.init(
-                string: Units(bytes: self.inputValue).getReadableSpeed(base: base, unit: self.speedUnit, omitUnits: !self.unitsState),
-                attributes: inputStringAttributes
-            )
+            let input = NSAttributedString.init(string: inputText, attributes: inputStringAttributes)
             input.draw(with: rect)
             
             rect = CGRect(x: Constants.Widget.margin.x + x, y: outputY, width: rowWidth - (Constants.Widget.margin.x*2), height: rowHeight)
-            let output = NSAttributedString.init(
-                string: Units(bytes: self.outputValue).getReadableSpeed(base: base, unit: self.speedUnit, omitUnits: !self.unitsState),
-                attributes: outputStringAttributes
-            )
+            let output = NSAttributedString.init(string: outputText, attributes: outputStringAttributes)
             output.draw(with: rect)
             
             width += rowWidth

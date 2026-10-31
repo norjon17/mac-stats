@@ -17,6 +17,7 @@ public struct Popup_c_s {
     public let margins: CGFloat = 8
     public let spacing: CGFloat = 2
     public let headerHeight: CGFloat = 42
+    public let cornerRadius: CGFloat = 16
     public let separatorHeight: CGFloat = 30
     public let radius: CGFloat = 6
     public let processHeight: CGFloat = 22

@@ -183,8 +183,9 @@ internal class PopupViewController: NSViewController {
 internal class PopupView: NSView {
     private var view: Popup_p? = nil
     
-    private var foreground: NSVisualEffectView
-    private var background: NSView
+    /// Liquid Glass background (macOS 26). Sits below the header and body; the material
+    /// adapts to light and dark mode on its own, so no overlay is needed.
+    private var foreground: NSGlassEffectView
     
     private let header: HeaderView
     private let body: NSScrollView
@@ -211,17 +212,9 @@ internal class PopupView: NSView {
         self.windowHeight = NSScreen.main?.visibleFrame.height
         self.containerHeight = self.body.documentView?.frame.height
         
-        self.foreground = NSVisualEffectView(frame: frame)
-        self.foreground.material = .titlebar
-        self.foreground.blendingMode = .behindWindow
-        self.foreground.state = .active
-        self.foreground.wantsLayer = true
-        self.foreground.layer?.backgroundColor = NSColor.red.cgColor
-        self.foreground.layer?.cornerRadius = 6
-        
-        self.background = NSView(frame: frame)
-        self.background.wantsLayer = true
-        self.foreground.addSubview(self.background)
+        self.foreground = NSGlassEffectView(frame: frame)
+        self.foreground.style = .regular
+        self.foreground.cornerRadius = Constants.Popup.cornerRadius
         
         super.init(frame: frame)
         
@@ -240,10 +233,6 @@ internal class PopupView: NSView {
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-    
-    override func updateLayer() {
-        self.background.layer?.backgroundColor = self.isDarkMode ? .clear : NSColor.white.cgColor
     }
     
     fileprivate func setView(_ view: Popup_p?) {
@@ -267,7 +256,6 @@ internal class PopupView: NSView {
         
         self.setFrameSize(size)
         self.foreground.setFrameSize(size)
-        self.background.setFrameSize(size)
         self.resizeBody(size, scrollVisible: isScrollVisible)
         self.header.setFrameOrigin(NSPoint(x: 0, y: size.height - Constants.Popup.headerHeight))
         
@@ -328,7 +316,6 @@ internal class PopupView: NSView {
         
         self.window?.setContentSize(windowSize)
         self.foreground.setFrameSize(windowSize)
-        self.background.setFrameSize(windowSize)
         self.resizeBody(windowSize, scrollVisible: isScrollVisible)
         self.header.setFrameOrigin(NSPoint(
             x: self.header.frame.origin.x,

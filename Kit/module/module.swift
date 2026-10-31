@@ -179,6 +179,7 @@ open class Module {
         guard self.enabled else { return }
         self.startReaders()
         self.menuBar.enable()
+        info("Module mounted, widgets: \(self.menuBar.activeWidgets.map { $0.type.rawValue }.joined(separator: ","))", log: self.log)
     }
     
     // disable module

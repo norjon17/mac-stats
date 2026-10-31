@@ -42,6 +42,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     static func main() {
         let launchStart = Date()
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+        NextLog.startSession("Stats \(version) on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         let app = NSApplication.shared
         let delegate = AppDelegate()
         delegate.launchStart = launchStart
@@ -52,10 +54,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         let startingPoint = self.launchStart ?? Date()
         
-        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
-        let os = ProcessInfo.processInfo.operatingSystemVersionString
-        let chip = SystemKit.shared.device.info.cpu?.name ?? "unknown CPU"
-        NextLog.startSession("Stats \(version) on macOS \(os), \(chip)")
+        info("Hardware: \(SystemKit.shared.device.info.cpu?.name ?? "unknown CPU"), \(SystemKit.shared.device.model.name)")
         HealthMonitor.shared.start()
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(handleWillSleep), name: NSWorkspace.willSleepNotification, object: nil)
         NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(handleDidWake), name: NSWorkspace.didWakeNotification, object: nil)

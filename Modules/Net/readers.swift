@@ -42,6 +42,9 @@ internal class UsageReader: Reader<Network_Usage> {
     private var inboundSourceSetting: String = "auto"
     private var routeStats: RouteStatsReader? = nil
     private var routeInboundActive: Bool = false
+    // route counters advance in bursts (several MB at once, then nothing), so the displayed
+    // download is a 4-tick moving average while the route source is active; totals stay exact.
+    private var routeDownloadWindow: [Int64] = []
     private var deadInboundTicks: Int = 0
     private var lastRawCounters: Bandwidth? = nil
     private let deadInboundTickThreshold = 5
@@ -185,6 +188,14 @@ internal class UsageReader: Reader<Network_Usage> {
 
         self.usage.total.upload += self.usage.bandwidth.upload
         self.usage.total.download += self.usage.bandwidth.download
+
+        if self.routeInboundActive {
+            self.routeDownloadWindow.append(self.usage.bandwidth.download)
+            if self.routeDownloadWindow.count > 4 { self.routeDownloadWindow.removeFirst() }
+            self.usage.bandwidth.download = self.routeDownloadWindow.reduce(0, +) / Int64(self.routeDownloadWindow.count)
+        } else if !self.routeDownloadWindow.isEmpty {
+            self.routeDownloadWindow.removeAll()
+        }
 
         self.usage.status = self.reachability.isReachable
 

@@ -37,6 +37,15 @@ internal class UsageReader: Reader<Network_Usage> {
 
     private var lastInterfaceID: String = ""
 
+    // inbound-source fallback (see routeStats.swift): the ifnet inbound counters can be dead
+    // while a transparent-proxy system extension owns the receive path.
+    private var inboundSourceSetting: String = "auto"
+    private var routeStats: RouteStatsReader? = nil
+    private var routeInboundActive: Bool = false
+    private var deadInboundTicks: Int = 0
+    private var lastRawCounters: Bandwidth? = nil
+    private let deadInboundTickThreshold = 5
+
     private var VPNMode: Bool {
         get { Store.shared.bool(key: "Network_VPNMode", defaultValue: false) }
     }
@@ -101,6 +110,7 @@ internal class UsageReader: Reader<Network_Usage> {
         self.reachability.reachable = {}
         self.reachability.unreachable = {}
         NotificationCenter.default.removeObserver(self, name: .resetTotalNetworkUsage, object: nil)
+        self.routeStats?.stop()
     }
 
     /// Called from settings when the interface selection changes: drop every cache and re-read immediately.
@@ -135,13 +145,17 @@ internal class UsageReader: Reader<Network_Usage> {
                 self._usage.laddr = Network_addr()
             }
             self.lastDetailsReadTS = .distantPast
+            self.resetInboundSource()
         }
 
         self.requestDetails(interfaceID)
 
         // single sysctl: byte counters, link flags and negotiated link rate come from the same buffer
         let sample = self.readInterfaceCounters(interfaceID)
-        let current = sample?.bandwidth ?? Bandwidth()
+        var current = sample?.bandwidth ?? Bandwidth()
+        if let sample, self.useRouteInbound(sample.bandwidth, interfaceID) {
+            current.download = self.routeStats?.counters(interface: interfaceID)?.rx ?? 0
+        }
 
         self.variablesQueue.sync {
             guard let sample, self._usage.interface?.BSDName == interfaceID else { return }
@@ -184,6 +198,84 @@ internal class UsageReader: Reader<Network_Usage> {
 
         self.usage.bandwidth.upload = current.upload
         self.usage.bandwidth.download = current.download
+
+        if self.routeInboundActive {
+            self.routeStats?.poll() // result lands in the snapshot before the next tick
+        }
+    }
+
+    // MARK: - inbound source selection
+
+    private var storedInboundSource: String {
+        Store.shared.string(key: "Network_inboundSource", defaultValue: "auto")
+    }
+
+    private func resetInboundSource() {
+        self.routeInboundActive = false
+        self.deadInboundTicks = 0
+        self.lastRawCounters = nil
+        self.routeStats?.stop()
+    }
+
+    /// Decides where this tick's download counter comes from. Returns true when the route
+    /// statistics replace the (dead) ifnet inbound counter; `raw` are the sysctl values.
+    private func useRouteInbound(_ raw: Bandwidth, _ interfaceID: String) -> Bool {
+        let setting = self.storedInboundSource
+        if setting != self.inboundSourceSetting {
+            self.inboundSourceSetting = setting
+            self.resetInboundSource()
+        }
+
+        switch setting {
+        case "interface":
+            return false
+        case "route":
+            if !self.routeInboundActive {
+                self.activateRouteInbound(interfaceID, reason: "selected in settings")
+            }
+            return self.routeInboundActive
+        default:
+            break
+        }
+
+        if self.routeInboundActive {
+            return true
+        }
+
+        defer { self.lastRawCounters = raw }
+        var dead = raw.download == 0 && raw.upload > 0 // nothing received since boot while sending works
+        if !dead, let last = self.lastRawCounters {
+            if raw.download == last.download && raw.upload > last.upload {
+                self.deadInboundTicks += 1
+                dead = self.deadInboundTicks >= self.deadInboundTickThreshold
+            } else {
+                self.deadInboundTicks = 0
+            }
+        }
+        if dead {
+            self.activateRouteInbound(interfaceID, reason: "inbound interface counters are dead")
+        }
+        return self.routeInboundActive
+    }
+
+    private func activateRouteInbound(_ interfaceID: String, reason: String) {
+        guard RouteStatsReader.isAvailable else {
+            // nothing better than the dead counter: stay on sysctl, stop re-evaluating
+            self.deadInboundTicks = 0
+            self.lastRawCounters = nil
+            return
+        }
+        if self.routeStats == nil {
+            self.routeStats = RouteStatsReader()
+        }
+        guard let routeStats = self.routeStats, routeStats.start() else { return }
+
+        self.routeInboundActive = true
+        self.deadInboundTicks = 0
+        // the stored counter now refers to a different source: skip one delta (shows 0 for a tick)
+        self.usage.bandwidth.download = 0
+        routeStats.poll()
+        self.log.log(level: .info, message: "\(reason) on \(interfaceID), using route statistics for download")
     }
 
     // MARK: - interface selection

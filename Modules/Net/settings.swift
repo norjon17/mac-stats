@@ -39,6 +39,12 @@ You can use a combination of any of the variables. There is only one limitation:
 </ul>
 """
 
+internal let NetworkInboundSources: [KeyValue_t] = [
+    KeyValue_t(key: "auto", value: "Automatic"),
+    KeyValue_t(key: "interface", value: "Interface counters"),
+    KeyValue_t(key: "route", value: "Route statistics")
+]
+
 internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
     private var usageReset: String = AppUpdateInterval.never.rawValue
     private var VPNModeState: Bool = false
@@ -48,6 +54,7 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
     private var baseValue: String = "byte"
     private var speedUnitValue: String = NetworkSpeedUnitAuto
     private var textValue: String = "$addr.private - $status"
+    private var inboundSourceValue: String = "auto"
 
     public var callback: (() -> Void) = {}
     public var usageResetCallback: (() -> Void) = {}
@@ -68,6 +75,7 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
         self.baseValue = Store.shared.string(key: "\(self.title)_base", defaultValue: self.baseValue)
         self.speedUnitValue = networkSpeedUnit(from: Store.shared.string(key: "\(self.title)_speedUnit", defaultValue: self.speedUnitValue)).key
         self.textValue = Store.shared.string(key: "\(self.title)_textWidgetValue", defaultValue: self.textValue)
+        self.inboundSourceValue = Store.shared.string(key: "\(self.title)_inboundSource", defaultValue: self.inboundSourceValue)
 
         super.init(frame: NSRect.zero)
         self.orientation = .vertical
@@ -134,6 +142,11 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
             PreferencesRow(localizedString("VPN mode"), component: switchView(
                 action: #selector(self.toggleVPNMode),
                 state: self.VPNModeState
+            )),
+            PreferencesRow(localizedString("Download counter"), component: selectView(
+                action: #selector(self.toggleInboundSource),
+                items: NetworkInboundSources,
+                selected: self.inboundSourceValue
             ))
         ]))
 
@@ -225,6 +238,12 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
         guard let key = sender.representedObject as? String else { return }
         self.baseValue = key
         Store.shared.set(key: "\(self.title)_base", value: self.baseValue)
+    }
+    @objc private func toggleInboundSource(_ sender: NSMenuItem) {
+        guard let key = sender.representedObject as? String else { return }
+        self.inboundSourceValue = key
+        Store.shared.set(key: "\(self.title)_inboundSource", value: key)
+        self.callback()
     }
     @objc private func toggleSpeedUnit(_ sender: NSMenuItem) {
         guard let key = sender.representedObject as? String else { return }

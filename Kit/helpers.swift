@@ -11,89 +11,11 @@
 // swiftlint:disable file_length
 
 import Cocoa
-import ServiceManagement
 import UserNotifications
 import WebKit
-import Metal
 import IOKit.pwr_mgt
-import WidgetKit
 
 public let machHostPort: mach_port_t = mach_host_self()
-
-public struct LaunchAtLogin {
-    private static let id = "\(Bundle.main.bundleIdentifier!).LaunchAtLogin"
-    
-    public static var isEnabled: Bool {
-        get {
-            if #available(macOS 13, *) {
-                return isEnabledNext
-            } else {
-                return isEnabledLegacy
-            }
-        }
-        set {
-            if #available(macOS 13, *) {
-                isEnabledNext = newValue
-            } else {
-                isEnabledLegacy = newValue
-            }
-        }
-    }
-    
-    private static var isEnabledLegacy: Bool {
-        get {
-            guard let jobs = (LaunchAtLogin.self as DeprecationWarningWorkaround.Type).jobsDict else {
-                return false
-            }
-            let job = jobs.first { $0["Label"] as! String == id }
-            return job?["OnDemand"] as? Bool ?? false
-        }
-        set {
-            SMLoginItemSetEnabled(id as CFString, newValue)
-        }
-    }
-    
-    @available(macOS 13, *)
-    private static var isEnabledNext: Bool {
-        get { SMAppService.mainApp.status == .enabled }
-        set {
-            do {
-                if newValue {
-                    if SMAppService.mainApp.status == .enabled {
-                        try? SMAppService.mainApp.unregister()
-                    }
-                    try SMAppService.mainApp.register()
-                } else {
-                    try SMAppService.mainApp.unregister()
-                }
-            } catch {
-                print("failed to \(newValue ? "enable" : "disable") launch at login: \(error.localizedDescription)")
-            }
-        }
-    }
-    
-    public static func migrate() {
-        guard #available(macOS 13, *), !Store.shared.exist(key: "LaunchAtLoginNext") else {
-            return
-        }
-        
-        Store.shared.set(key: "LaunchAtLoginNext", value: true)
-        isEnabledNext = isEnabledLegacy
-        isEnabledLegacy = false
-        try? SMAppService.loginItem(identifier: id).unregister()
-    }
-}
-
-private protocol DeprecationWarningWorkaround {
-    static var jobsDict: [[String: AnyObject]]? { get }
-}
-
-extension LaunchAtLogin: DeprecationWarningWorkaround {
-    @available(*, deprecated)
-    static var jobsDict: [[String: AnyObject]]? {
-        SMCopyAllJobDictionaries(kSMDomainUserLaunchd)?.takeRetainedValue() as? [[String: AnyObject]]
-    }
-}
 
 public protocol KeyValue_p {
     var key: String { get }
@@ -629,111 +551,7 @@ public func toggleNSControlState(_ control: NSControl?, state: NSControl.StateVa
     }
 }
 
-public func syncShell(_ args: String) -> String {
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: "/bin/sh")
-    task.arguments = ["-c", args]
-    let pipe = Pipe()
-    
-    task.standardOutput = pipe
-    do {
-        try task.run()
-    } catch let err {
-        error("syncShell: \(err.localizedDescription)")
-        return ""
-    }
-    task.waitUntilExit()
-    
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    let output = String(data: data, encoding: .utf8) ?? ""
-    
-    return output
-}
 
-public func isNewestVersion(currentVersion: String, latestVersion: String) -> Bool {
-    let currentNumber = currentVersion.replacingOccurrences(of: "v", with: "")
-    let latestNumber = latestVersion.replacingOccurrences(of: "v", with: "")
-    
-    let currentArray = currentNumber.condenseWhitespace().split(separator: ".")
-    let latestArray = latestNumber.condenseWhitespace().split(separator: ".")
-    let component: ([Substring], Int) -> Int = { arr, i in
-        arr.indices.contains(i) ? Int(arr[i]) ?? 0 : 0
-    }
-    
-    var current = Version(major: component(currentArray, 0), minor: component(currentArray, 1), patch: component(currentArray, 2))
-    var latest = Version(major: component(latestArray, 0), minor: component(latestArray, 1), patch: component(latestArray, 2))
-    
-    if let patch = currentArray.last, patch.contains("-") {
-        let arr = patch.split(separator: "-")
-        if let patchNumber = arr.first {
-            current.patch = Int(patchNumber) ?? 0
-        }
-        if let beta = arr.last {
-            current.beta = Int(beta.replacingOccurrences(of: "beta", with: "")) ?? 0
-        }
-    }
-    
-    if let patch = latestArray.last, patch.contains("-") {
-        let arr = patch.split(separator: "-")
-        if let patchNumber = arr.first {
-            latest.patch = Int(patchNumber) ?? 0
-        }
-        if let beta = arr.last {
-            latest.beta = Int(beta.replacingOccurrences(of: "beta", with: "")) ?? 0
-        }
-    }
-    
-    // current is not beta + latest is not beta
-    if current.beta == nil && latest.beta == nil {
-        if latest.major > current.major {
-            return true
-        }
-        
-        if latest.minor > current.minor && latest.major >= current.major {
-            return true
-        }
-        
-        if latest.patch > current.patch && latest.minor >= current.minor && latest.major >= current.major {
-            return true
-        }
-    }
-    
-    // current version is beta + last version is not beta
-    if current.beta != nil && latest.beta == nil {
-        if latest.major > current.major {
-            return true
-        }
-        
-        if latest.minor > current.minor && latest.major >= current.major {
-            return true
-        }
-        
-        if latest.patch >= current.patch && latest.minor >= current.minor && latest.major >= current.major {
-            return true
-        }
-    }
-    
-    // current version is beta + last version is beta
-    if current.beta != nil && latest.beta != nil {
-        if latest.major > current.major {
-            return true
-        }
-        
-        if latest.minor > current.minor && latest.major >= current.major {
-            return true
-        }
-        
-        if latest.patch >= current.patch && latest.minor >= current.minor && latest.major >= current.major {
-            return true
-        }
-        
-        if latest.beta! > current.beta! && latest.patch >= current.patch && latest.minor >= current.minor && latest.major >= current.major {
-            return true
-        }
-    }
-    
-    return false
-}
 
 public func showNotification(title: String, subtitle: String? = nil, userInfo: [AnyHashable: Any] = [:], delegate: UNUserNotificationCenterDelegate? = nil) -> String {
     let id = UUID().uuidString
@@ -763,21 +581,6 @@ public func showNotification(title: String, subtitle: String? = nil, userInfo: [
 public func removeNotification(_ id: String) {
     let center = UNUserNotificationCenter.current()
     center.removeDeliveredNotifications(withIdentifiers: [id])
-}
-
-public struct TopProcess: Codable, Process_p {
-    public var pid: Int
-    public var name: String
-    public var usage: Double
-    public var icon: NSImage {
-        get { ProcessIconCache.shared.icon(for: self.pid) }
-    }
-    
-    public init(pid: Int, name: String, usage: Double) {
-        self.pid = pid
-        self.name = name
-        self.usage = usage
-    }
 }
 
 public func fetchIOService(_ name: String) -> [NSDictionary]? {
@@ -993,101 +796,6 @@ internal class WidgetLabelView: NSView {
     }
 }
 
-public func process(path: String, arguments: [String]) -> String? {
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: path)
-    task.arguments = arguments
-    
-    let outputPipe = Pipe()
-    defer {
-        outputPipe.fileHandleForReading.closeFile()
-    }
-    task.standardOutput = outputPipe
-    
-    do {
-        try task.run()
-    } catch let error {
-        debug("system_profiler SPMemoryDataType: \(error.localizedDescription)")
-        return nil
-    }
-    
-    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-    let output = String(data: outputData, encoding: .utf8)
-    guard let output, !output.isEmpty else { return nil }
-    
-    return output
-}
-
-public func process(path: String, arguments: [String], environment: [String: String]? = nil, timeout: TimeInterval) -> String? {
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: path)
-    task.arguments = arguments
-    if let environment {
-        task.environment = environment
-    }
-    
-    let inputPipe = Pipe()
-    let outputPipe = Pipe()
-    let errorPipe = Pipe()
-    task.standardInput = inputPipe
-    task.standardOutput = outputPipe
-    task.standardError = errorPipe
-    
-    let exited = DispatchGroup()
-    exited.enter()
-    task.terminationHandler = { _ in exited.leave() }
-    
-    do {
-        try task.run()
-    } catch let err {
-        task.terminationHandler = nil
-        exited.leave()
-        debug("\(path): \(err.localizedDescription)")
-        return nil
-    }
-    
-    var outputData = Data()
-    let drained = DispatchGroup()
-    drained.enter()
-    DispatchQueue.global(qos: .utility).async {
-        outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-        drained.leave()
-    }
-    drained.enter()
-    DispatchQueue.global(qos: .utility).async {
-        _ = errorPipe.fileHandleForReading.readDataToEndOfFile()
-        drained.leave()
-    }
-    
-    var timedOut = false
-    if exited.wait(timeout: .now() + timeout) == .timedOut {
-        timedOut = true
-        task.terminate()
-        if exited.wait(timeout: .now() + 2) == .timedOut {
-            kill(task.processIdentifier, SIGKILL)
-            _ = exited.wait(timeout: .now() + 2)
-        }
-    }
-    
-    inputPipe.fileHandleForWriting.closeFile()
-    guard drained.wait(timeout: .now() + 2) == .success else {
-        error("\(path) did not exit within \(Int(timeout))s and could not be killed")
-        return nil
-    }
-    outputPipe.fileHandleForReading.closeFile()
-    errorPipe.fileHandleForReading.closeFile()
-    
-    if timedOut {
-        error("\(path) did not exit within \(Int(timeout))s, terminated")
-        return nil
-    }
-    
-    let output = String(data: outputData, encoding: .utf8)
-    guard let output, !output.isEmpty else { return nil }
-    
-    return output
-}
-
 public class SettingsContainerView: NSStackView {
     public init() {
         super.init(frame: NSRect.zero)
@@ -1098,325 +806,6 @@ public class SettingsContainerView: NSStackView {
     
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
-    }
-}
-
-public enum SMCHelperInstallState {
-    case enabled
-    case requiresApproval
-    case failed
-}
-
-public class SMCHelper {
-    public static let shared = SMCHelper()
-    
-    private let id: String = "eu.exelban.Stats.SMC.Helper"
-    private let plistName: String = "eu.exelban.Stats.SMC.Helper.plist"
-    
-    public var isInstalled: Bool {
-        if #available(macOS 13, *) {
-            return SMAppService.daemon(plistName: self.plistName).status == .enabled
-        }
-        return self.legacyIsInstalled
-    }
-    
-    public var requiresApproval: Bool {
-        if #available(macOS 13, *) {
-            return SMAppService.daemon(plistName: self.plistName).status == .requiresApproval
-        }
-        return false
-    }
-    
-    public func openLoginItems() {
-        if #available(macOS 13, *) {
-            SMAppService.openSystemSettingsLoginItems()
-        }
-    }
-    
-    private var legacyIsInstalled: Bool {
-        syncShell("ls /Library/PrivilegedHelperTools/").contains(self.id)
-    }
-    
-    private var connection: NSXPCConnection? = nil
-    
-    public func setFanSpeed(_ id: Int, speed: Int) {
-        guard let helper = self.helper(nil) else { return }
-        helper.setFanSpeed(id: id, value: speed) { result in
-            if let result, !result.isEmpty {
-                NSLog("set fan speed: \(result)")
-            }
-        }
-    }
-    
-    public func setFanMode(_ id: Int, mode: Int) {
-        guard let helper = self.helper(nil) else { return }
-        helper.setFanMode(id: id, mode: mode) { result in
-            if let result, !result.isEmpty {
-                NSLog("set fan mode: \(result)")
-            }
-        }
-    }
-    
-    public func resetFanControl() {
-        guard let helper = self.helper(nil) else { return }
-        helper.resetFanControl { _ in }
-    }
-    
-    public func isActive() -> Bool {
-        return self.connection != nil
-    }
-    
-    public func checkForUpdate() {
-        if #available(macOS 13, *) {
-            self.cleanupLegacyInstall()
-            let status = SMAppService.daemon(plistName: self.plistName).status
-            guard status == .enabled else {
-                print("SMC helper update check skipped: service status \(status.rawValue) for \(Bundle.main.bundleURL.path)")
-                return
-            }
-        }
-        
-        let helperURL = Bundle.main.bundleURL.appendingPathComponent("Contents/Library/LaunchServices/eu.exelban.Stats.SMC.Helper")
-        guard let helperBundleInfo = CFBundleCopyInfoDictionaryForURL(helperURL as CFURL) as? [String: Any],
-              let helperVersion = helperBundleInfo["CFBundleShortVersionString"] as? String else {
-            print("SMC helper update check skipped: cannot read bundled helper version at \(helperURL.path)")
-            return
-        }
-        guard let helper = self.helper(nil) else {
-            print("SMC helper update check skipped: helper proxy unavailable")
-            return
-        }
-        
-        helper.version { installedHelperVersion in
-            guard installedHelperVersion != helperVersion else { return }
-            print("new version of SMC helper is detected (\(installedHelperVersion) -> \(helperVersion)), going to update...")
-            self.reinstall()
-        }
-    }
-    
-    private func reinstall() {
-        let completion: (SMCHelperInstallState) -> Void = { state in
-            if case .enabled = state {
-                print("the new version of SMC helper was successfully installed")
-            } else {
-                print("error when installing a new version of the SMC helper")
-            }
-        }
-        
-        self.uninstall(silent: true) { success in
-            guard success else { return }
-            self.install(completion: completion)
-        }
-    }
-    
-    public func install(completion: @escaping (_ state: SMCHelperInstallState) -> Void) {
-        if #available(macOS 13, *) {
-            self.cleanupLegacyInstall()
-            let service = SMAppService.daemon(plistName: self.plistName)
-            if service.status == .enabled {
-                completion(.enabled)
-                return
-            }
-            
-            do {
-                try service.register()
-            } catch {
-                print("failed to register SMC helper daemon: \(error.localizedDescription)")
-                if service.status == .requiresApproval {
-                    print("SMC helper requires approval in System Settings > Login Items")
-                    completion(.requiresApproval)
-                    return
-                }
-                print("resetting and retrying")
-                try? service.unregister()
-                do {
-                    try service.register()
-                } catch {
-                    print("failed to register SMC helper daemon after reset: \(error.localizedDescription)")
-                    if service.status == .requiresApproval {
-                        print("SMC helper requires approval in System Settings > Login Items")
-                        completion(.requiresApproval)
-                        return
-                    }
-                    completion(.failed)
-                    return
-                }
-            }
-            
-            switch service.status {
-            case .enabled:
-                completion(.enabled)
-            case .requiresApproval:
-                print("SMC helper requires approval in System Settings > Login Items")
-                completion(.requiresApproval)
-            default:
-                completion(.failed)
-            }
-            
-            return
-        }
-        
-        self.installLegacy(completion: completion)
-    }
-    
-    @available(macOS 13, *)
-    private func cleanupLegacyInstall() {
-        guard self.legacyIsInstalled, let helper = self.helper(nil) else { return }
-        print("legacy SMC helper detected, removing it before registering the SMAppService daemon")
-        helper.uninstall()
-        self.connection?.invalidate()
-        self.connection = nil
-    }
-    
-    private func installLegacy(completion: @escaping (_ state: SMCHelperInstallState) -> Void) {
-        var authRef: AuthorizationRef?
-        var authStatus = AuthorizationCreate(nil, nil, [.preAuthorize], &authRef)
-        
-        guard authStatus == errAuthorizationSuccess else {
-            print("Unable to get a valid empty authorization reference to load Helper daemon")
-            completion(.failed)
-            return
-        }
-        
-        let authItem = kSMRightBlessPrivilegedHelper.withCString { authorizationString in
-            AuthorizationItem(name: authorizationString, valueLength: 0, value: nil, flags: 0)
-        }
-        
-        let pointer = UnsafeMutablePointer<AuthorizationItem>.allocate(capacity: 1)
-        pointer.initialize(to: authItem)
-        
-        defer {
-            pointer.deinitialize(count: 1)
-            pointer.deallocate()
-        }
-        
-        var authRights = AuthorizationRights(count: 1, items: pointer)
-        
-        let flags: AuthorizationFlags = [.interactionAllowed, .extendRights, .preAuthorize]
-        authStatus = AuthorizationCreate(&authRights, nil, flags, &authRef)
-        
-        guard authStatus == errAuthorizationSuccess else {
-            print("Unable to get a valid loading authorization reference to load Helper daemon")
-            completion(.failed)
-            return
-        }
-        
-        var error: Unmanaged<CFError>?
-        if SMJobBless(kSMDomainSystemLaunchd, "eu.exelban.Stats.SMC.Helper" as CFString, authRef, &error) == false {
-            let blessError = error!.takeRetainedValue() as Error
-            print("Error while installing the Helper: \(blessError.localizedDescription)")
-            completion(.failed)
-            return
-        }
-        
-        AuthorizationFree(authRef!, [])
-        completion(.enabled)
-    }
-    
-    private func helperConnection() -> NSXPCConnection? {
-        guard self.connection == nil else {
-            return self.connection
-        }
-        
-        let connection = NSXPCConnection(machServiceName: "eu.exelban.Stats.SMC.Helper", options: .privileged)
-        connection.exportedObject = self
-        connection.remoteObjectInterface = NSXPCInterface(with: HelperProtocol.self)
-        connection.invalidationHandler = { [weak self] in
-            self?.connection?.invalidationHandler = nil
-            OperationQueue.main.addOperation { [weak self] in
-                self?.connection = nil
-            }
-        }
-        
-        self.connection = connection
-        self.connection?.resume()
-        
-        return self.connection
-    }
-    
-    private func helper(_ completion: ((Bool) -> Void)?) -> HelperProtocol? {
-        guard let helper = self.helperConnection() else {
-            completion?(false)
-            return nil
-        }
-        guard let service = helper.remoteObjectProxyWithErrorHandler({ error in
-            print(error)
-            completion?(false)
-        }) as? HelperProtocol else {
-            completion?(false)
-            return nil
-        }
-        
-        service.setSMCPath(Bundle.main.path(forResource: "smc", ofType: nil)!)
-        
-        return service
-    }
-    
-    private func restoreFanModes(completion: @escaping (Bool) -> Void) {
-        if !Thread.isMainThread {
-            DispatchQueue.main.async { self.restoreFanModes(completion: completion) }
-            return
-        }
-        guard let count = SMC.shared.getValue("FNum"), count > 0 else {
-            completion(true)
-            return
-        }
-        let ids = Array(0..<Int(count))
-        var pending = Set(ids)
-        var success = true
-        let finish: (Int, Bool) -> Void = { id, restored in
-            DispatchQueue.main.async {
-                // An XPC error and a late reply must count as only one result.
-                guard pending.remove(id) != nil else { return }
-                success = success && restored
-                if pending.isEmpty { completion(success) }
-            }
-        }
-        for id in ids {
-            guard let helper = self.helper({ connected in
-                if !connected { finish(id, false) }
-            }) else { continue }
-            helper.setFanMode(id: id, mode: FanMode.automatic.rawValue) { result in
-                finish(id, result != nil)
-            }
-        }
-    }
-    
-    public func uninstall(silent: Bool = false, completion: @escaping (Bool) -> Void = { _ in }) {
-        self.restoreFanModes { restored in
-            guard restored else {
-                print("failed to restore fan modes; SMC helper was not removed")
-                completion(false)
-                return
-            }
-            if #available(macOS 13, *) {
-                SMAppService.daemon(plistName: self.plistName).unregister { error in
-                    DispatchQueue.main.async {
-                        if let error {
-                            print("failed to unregister SMC helper daemon: \(error.localizedDescription)")
-                            completion(false)
-                            return
-                        }
-                        self.connection?.invalidate()
-                        self.connection = nil
-                        if !silent {
-                            NotificationCenter.default.post(name: .fanHelperState, object: nil, userInfo: ["state": false])
-                        }
-                        completion(true)
-                    }
-                }
-                return
-            }
-            guard let helper = self.helper(nil) else {
-                completion(false)
-                return
-            }
-            helper.uninstall()
-            if !silent {
-                NotificationCenter.default.post(name: .fanHelperState, object: nil, userInfo: ["state": false])
-            }
-            completion(true)
-        }
     }
 }
 
@@ -2093,186 +1482,6 @@ public class CPUStressTest {
     }
 }
 
-public class GPUStressTest {
-    public var isRunning = false
-    
-    private let device: MTLDevice
-    private let commandQueue: MTLCommandQueue
-    private let pipeline: MTLComputePipelineState
-    private let dataSize = 50_000_000 // Large data size for GPU workload
-    private var bufferA: MTLBuffer?
-    private var bufferB: MTLBuffer?
-    private var bufferC: MTLBuffer?
-    
-    public init?() {
-        guard let device = MTLCreateSystemDefaultDevice(), let queue = device.makeCommandQueue() else {
-            return nil
-        }
-        
-        self.device = device
-        self.commandQueue = queue
-        
-        let source = """
-        #include <metal_stdlib>
-        using namespace metal;
-        kernel void full_load_kernel(const device float* inA [[buffer(0)]],
-                                      const device float* inB [[buffer(1)]],
-                                      device float* outC [[buffer(2)]],
-                                      uint id [[thread_position_in_grid]]) {
-            outC[id] = (inA[id] * inB[id]) + sin(inA[id]) + cos(inB[id]) + tan(inA[id]) + log(inB[id]);
-        }
-        """
-        
-        do {
-            let library = try device.makeLibrary(source: source, options: nil)
-            let function = library.makeFunction(name: "full_load_kernel")!
-            self.pipeline = try device.makeComputePipelineState(function: function)
-        } catch {
-            return nil
-        }
-    }
-    
-    private func allocateMemory() {
-        guard self.bufferA == nil, self.bufferB == nil, self.bufferC == nil else { return }
-        
-        self.bufferA = self.device.makeBuffer(length: self.dataSize * MemoryLayout<Float>.size, options: .storageModeShared)
-        self.bufferB = self.device.makeBuffer(length: self.dataSize * MemoryLayout<Float>.size, options: .storageModeShared)
-        self.bufferC = self.device.makeBuffer(length: self.dataSize * MemoryLayout<Float>.size, options: .storageModeShared)
-        
-        let dataA = [Float](repeating: 1.0, count: self.dataSize)
-        let dataB = [Float](repeating: 2.0, count: self.dataSize)
-        
-        memcpy(self.bufferA?.contents(), dataA, dataA.count * MemoryLayout<Float>.size)
-        memcpy(self.bufferB?.contents(), dataB, dataB.count * MemoryLayout<Float>.size)
-    }
-    
-    private func freeMemory() {
-        self.bufferA = nil
-        self.bufferB = nil
-        self.bufferC = nil
-    }
-    
-    public func start() {
-        guard !self.isRunning else { return }
-        self.isRunning = true
-        self.allocateMemory()
-        
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.test()
-        }
-    }
-    
-    public func stop() {
-        self.isRunning = false
-        self.freeMemory()
-    }
-    
-    private func test() {
-        let threadGroupSize = MTLSize(width: 256, height: 1, depth: 1)
-        let gridSize = MTLSize(width: self.dataSize, height: 1, depth: 1)
-        
-        while self.isRunning {
-            guard let commandBuffer = self.commandQueue.makeCommandBuffer(),
-                  let commandEncoder = commandBuffer.makeComputeCommandEncoder(),
-                  let bufferA = self.bufferA, let bufferB = self.bufferB, let bufferC = self.bufferC else {
-                break
-            }
-            
-            commandEncoder.setComputePipelineState(self.pipeline)
-            commandEncoder.setBuffer(bufferA, offset: 0, index: 0)
-            commandEncoder.setBuffer(bufferB, offset: 0, index: 1)
-            commandEncoder.setBuffer(bufferC, offset: 0, index: 2)
-            commandEncoder.dispatchThreads(gridSize, threadsPerThreadgroup: threadGroupSize)
-            commandEncoder.endEncoding()
-            commandBuffer.commit()
-            
-            commandBuffer.waitUntilCompleted()
-        }
-    }
-}
-
-public final class SystemWidgetUpdates {
-    public static let shared = SystemWidgetUpdates()
-    
-    private let queue = DispatchQueue(label: "eu.exelban.Stats.SystemWidgetUpdates", qos: .utility)
-    private let encoder = JSONEncoder()
-    private let interval: TimeInterval
-    private var pending: [String: () -> [String]] = [:]
-    private var configuredKinds: Set<String> = []
-    private var nextConfigurationCheck: TimeInterval = 0
-    private var checkingConfigurations = false
-    
-    init(interval: TimeInterval = 5) {
-        self.interval = interval
-        self.encoder.outputFormatting = .sortedKeys
-    }
-    
-    public func update<T: Encodable>(_ value: T, key: String, kinds: [String], defaults: UserDefaults?) {
-        guard let defaults else { return }
-        self.queue.async {
-            guard defaults.bool(forKey: "systemWidgetsUpdates_state") else { return }
-            self.refreshConfigurations()
-            guard !self.activeKinds(kinds, defaults: defaults).isEmpty else { return }
-            
-            let schedule = self.pending.isEmpty
-            self.pending[key] = {
-                guard defaults.bool(forKey: "systemWidgetsUpdates_state") else { return [] }
-                let activeKinds = self.activeKinds(kinds, defaults: defaults)
-                guard !activeKinds.isEmpty, let data = try? self.encoder.encode(value), data != defaults.data(forKey: key) else { return [] }
-                defaults.set(data, forKey: key)
-                return activeKinds
-            }
-            if schedule {
-                self.queue.asyncAfter(deadline: .now() + self.interval) {
-                    self.flush()
-                }
-            }
-        }
-    }
-    
-    private func activeKinds(_ kinds: [String], defaults: UserDefaults) -> [String] {
-        kinds.filter { self.configuredKinds.contains($0) || SystemWidgetUpdates.isWidgetActive(defaults, [$0]) }
-    }
-    
-    private func refreshConfigurations() {
-        let now = ProcessInfo.processInfo.systemUptime
-        guard !self.checkingConfigurations, now >= self.nextConfigurationCheck else { return }
-        self.checkingConfigurations = true
-        self.nextConfigurationCheck = now + 60
-        WidgetCenter.shared.getCurrentConfigurations { result in
-            self.queue.async {
-                self.checkingConfigurations = false
-                if case let .success(configurations) = result {
-                    self.configuredKinds = Set(configurations.map { $0.kind })
-                }
-            }
-        }
-    }
-    
-    private func flush() {
-        let updates = self.pending
-        self.pending.removeAll(keepingCapacity: true)
-        var kinds: Set<String> = []
-        for update in updates.values {
-            kinds.formUnion(update())
-        }
-        for kind in kinds {
-            WidgetCenter.shared.reloadTimelines(ofKind: kind)
-        }
-    }
-    
-    static func isWidgetActive(_ defaults: UserDefaults?, _ widgets: [String]) -> Bool {
-        for name in widgets {
-            guard let lastUpdate = defaults?.double(forKey: name) else { return false }
-            let timeSinceUpdate = Date().timeIntervalSince1970 - lastUpdate
-            if timeSinceUpdate < 60 {
-                return true
-            }
-        }
-        return false
-    }
-}
-
 public func countryFlag(_ code: String) -> String? {
     let uppercased = code.uppercased()
     guard uppercased.count == 2 else { return nil }
@@ -2531,4 +1740,101 @@ public struct UserContext {
         }
         return CFPreferencesCopyAppValue("NSStatusItem Visible FocusModes" as CFString, "com.apple.controlcenter" as CFString) as? Bool ?? false
     }
+}
+
+// MARK: - One-shot subprocess helpers (used by SystemKit for hardware discovery at launch only)
+
+public func process(path: String, arguments: [String]) -> String? {
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: path)
+    task.arguments = arguments
+    
+    let outputPipe = Pipe()
+    defer {
+        outputPipe.fileHandleForReading.closeFile()
+    }
+    task.standardOutput = outputPipe
+    
+    do {
+        try task.run()
+    } catch let error {
+        debug("system_profiler SPMemoryDataType: \(error.localizedDescription)")
+        return nil
+    }
+    
+    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+    let output = String(data: outputData, encoding: .utf8)
+    guard let output, !output.isEmpty else { return nil }
+    
+    return output
+}
+
+public func process(path: String, arguments: [String], environment: [String: String]? = nil, timeout: TimeInterval) -> String? {
+    let task = Process()
+    task.executableURL = URL(fileURLWithPath: path)
+    task.arguments = arguments
+    if let environment {
+        task.environment = environment
+    }
+    
+    let inputPipe = Pipe()
+    let outputPipe = Pipe()
+    let errorPipe = Pipe()
+    task.standardInput = inputPipe
+    task.standardOutput = outputPipe
+    task.standardError = errorPipe
+    
+    let exited = DispatchGroup()
+    exited.enter()
+    task.terminationHandler = { _ in exited.leave() }
+    
+    do {
+        try task.run()
+    } catch let err {
+        task.terminationHandler = nil
+        exited.leave()
+        debug("\(path): \(err.localizedDescription)")
+        return nil
+    }
+    
+    var outputData = Data()
+    let drained = DispatchGroup()
+    drained.enter()
+    DispatchQueue.global(qos: .utility).async {
+        outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+        drained.leave()
+    }
+    drained.enter()
+    DispatchQueue.global(qos: .utility).async {
+        _ = errorPipe.fileHandleForReading.readDataToEndOfFile()
+        drained.leave()
+    }
+    
+    var timedOut = false
+    if exited.wait(timeout: .now() + timeout) == .timedOut {
+        timedOut = true
+        task.terminate()
+        if exited.wait(timeout: .now() + 2) == .timedOut {
+            kill(task.processIdentifier, SIGKILL)
+            _ = exited.wait(timeout: .now() + 2)
+        }
+    }
+    
+    inputPipe.fileHandleForWriting.closeFile()
+    guard drained.wait(timeout: .now() + 2) == .success else {
+        error("\(path) did not exit within \(Int(timeout))s and could not be killed")
+        return nil
+    }
+    outputPipe.fileHandleForReading.closeFile()
+    errorPipe.fileHandleForReading.closeFile()
+    
+    if timedOut {
+        error("\(path) did not exit within \(Int(timeout))s, terminated")
+        return nil
+    }
+    
+    let output = String(data: outputData, encoding: .utf8)
+    guard let output, !output.isEmpty else { return nil }
+    
+    return output
 }

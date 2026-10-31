@@ -19,8 +19,6 @@ public enum widget_t: String {
     case pieChart = "pie_chart"
     case networkChart = "network_chart"
     case speed = "speed"
-    case battery = "battery"
-    case batteryDetails = "battery_details"
     case stack = "sensors" // to replace
     case memory = "memory"
     case label = "label"
@@ -55,12 +53,6 @@ public enum widget_t: String {
         case .speed:
             preview = SpeedWidget(title: module, config: widgetConfig, preview: true)
             item = SpeedWidget(title: module, config: widgetConfig, preview: false)
-        case .battery:
-            preview = BatteryWidget(title: module, preview: true)
-            item = BatteryWidget(title: module, preview: false)
-        case .batteryDetails:
-            preview = BatteryDetailsWidget(title: module, preview: true)
-            item = BatteryDetailsWidget(title: module, preview: false)
         case .stack:
             preview = StackWidget(title: module, config: widgetConfig, preview: true)
             item = StackWidget(title: module, config: widgetConfig, preview: false)
@@ -90,12 +82,8 @@ public enum widget_t: String {
             var width: CGFloat = view.bounds.width
             
             switch preview {
-            case is Mini:
-                if module == "Battery" {
-                    width = view.bounds.width + 3
-                }
             case is BarChart:
-                if module == "GPU" || module == "RAM" || module == "Disk" || module == "Battery" {
+                if module == "RAM" {
                     width = 11 + (Constants.Widget.margin.x*2)
                 } else if module == "Sensors" {
                     width = 22 + (Constants.Widget.margin.x*2)
@@ -105,13 +93,9 @@ public enum widget_t: String {
             case is StackWidget:
                 if module == "Sensors" {
                     width = 25
-                } else if module == "Clock" {
-                    width = 114
                 }
             case is MemoryWidget:
                 width = view.bounds.width + 8 + Constants.Widget.spacing*2
-            case is BatteryWidget:
-                width = view.bounds.width - 3
             default: width = view.bounds.width
             }
             
@@ -139,8 +123,6 @@ public enum widget_t: String {
         case .pieChart: return localizedString("Pie chart widget")
         case .networkChart: return localizedString("Network chart widget")
         case .speed: return localizedString("Speed widget")
-        case .battery: return localizedString("Battery widget")
-        case .batteryDetails: return localizedString("Battery details widget")
         case .stack: return localizedString("Stack widget")
         case .memory: return localizedString("Memory widget")
         case .label: return localizedString("Label widget")

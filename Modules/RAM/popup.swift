@@ -18,7 +18,6 @@ internal class Popup: PopupWrapper {
     private let dashboardHeight: CGFloat = 90
     private let chartHeight: CGFloat = 90 + Constants.Popup.separatorHeight
     private let detailsHeight: CGFloat = (22*6) + Constants.Popup.separatorHeight + 16
-    private let processHeight: CGFloat = 22
     
     private var usedField: NSTextField? = nil
     private var freeField: NSTextField? = nil
@@ -39,18 +38,8 @@ internal class Popup: PopupWrapper {
     private var bar: BarChartView = BarChartView(size: 10, horizontal: true)
     private var circle: PieChartView? = nil
     private var level: GaugeChartView? = nil
-    private var processesInitialized: Bool = false
     
     private let loadCache = PopupCache<RAM_Usage>()
-    
-    private var processes: ProcessesView? = nil
-    
-    private var numberOfProcesses: Int {
-        Store.shared.int(key: "\(self.title)_processes", defaultValue: 8)
-    }
-    private var processesHeight: CGFloat {
-        (self.processHeight*CGFloat(self.numberOfProcesses)) + (self.numberOfProcesses == 0 ? 0 : Constants.Popup.separatorHeight + 22)
-    }
     
     private var lineChartHistory: Int = 180
     private var lineChartScale: Scale = .none
@@ -75,7 +64,6 @@ internal class Popup: PopupWrapper {
             width: Constants.Popup.width,
             height: dashboardHeight + chartHeight + detailsHeight
         ))
-        self.setFrameSize(NSSize(width: self.frame.width, height: self.frame.height+self.processesHeight))
         
         self.appColorState = SColor.fromString(Store.shared.string(key: "\(self.title)_appColor", defaultValue: self.appColorState.key))
         self.wiredColorState = SColor.fromString(Store.shared.string(key: "\(self.title)_wiredColor", defaultValue: self.wiredColorState.key))
@@ -93,7 +81,6 @@ internal class Popup: PopupWrapper {
         gridView.addRow(with: [self.initDashboard()])
         gridView.addRow(with: [self.initChart()])
         gridView.addRow(with: [self.initDetails()])
-        gridView.addRow(with: [self.initProcesses()])
         
         gridView.row(at: 0).height = self.dashboardHeight
         gridView.row(at: 1).height = self.chartHeight
@@ -113,29 +100,6 @@ internal class Popup: PopupWrapper {
     
     public override func appear() {
         self.replay(self.loadCache, render: self.renderLoad)
-    }
-    
-    public override func disappear() {
-        self.processes?.setLock(false)
-    }
-    
-    public func numberOfProcessesUpdated() {
-        if self.processes?.count == self.numberOfProcesses { return }
-        
-        DispatchQueue.main.async(execute: {
-            let h: CGFloat = self.dashboardHeight + self.chartHeight + self.detailsHeight + self.processesHeight
-            self.setFrameSize(NSSize(width: self.frame.width, height: h))
-            
-            self.grid?.setFrameSize(NSSize(width: self.frame.width, height: h))
-            
-            self.grid?.row(at: 3).cell(at: 0).contentView?.removeFromSuperview()
-            self.processes = nil
-            self.grid?.removeRow(at: 3)
-            self.grid?.addRow(with: [self.initProcesses()])
-            self.processesInitialized = false
-            
-            self.sizeCallback?(self.frame.size)
-        })
     }
     
     private func initDashboard() -> NSView {
@@ -222,24 +186,6 @@ internal class Popup: PopupWrapper {
         return view
     }
     
-    private func initProcesses() -> NSView  {
-        if self.numberOfProcesses == 0 { return NSView() }
-        
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: self.processesHeight))
-        let separator = separatorView(localizedString("Top processes"), origin: NSPoint(x: 0, y: self.processesHeight-Constants.Popup.separatorHeight), width: self.frame.width)
-        let container: ProcessesView = ProcessesView(
-            frame: NSRect(x: 0, y: 0, width: self.frame.width, height: separator.frame.origin.y),
-            values: [(localizedString("Usage"), nil)],
-            n: self.numberOfProcesses
-        )
-        self.processes = container
-        
-        view.addSubview(separator)
-        view.addSubview(container)
-        
-        return view
-    }
-    
     public func loadCallback(_ value: RAM_Usage) {
         self.apply(value, to: self.loadCache, render: self.renderLoad)
         self.chart?.addValue(value.usage)
@@ -275,23 +221,6 @@ internal class Popup: PopupWrapper {
         self.bar.setValues(values)
         
         self.chart?.display()
-    }
-    
-    public func processCallback(_ list: [TopProcess]) {
-        DispatchQueue.main.async(execute: {
-            if !(self.window?.isVisible ?? false) && self.processesInitialized {
-                return
-            }
-            let list = list.map { $0 }
-            if list.count != self.processes?.count { self.processes?.clear() }
-            
-            for i in 0..<list.count {
-                let process = list[i]
-                self.processes?.set(i, process, [Units(bytes: Int64(process.usage)).getReadableMemory(style: .memory)])
-            }
-            
-            self.processesInitialized = true
-        })
     }
     
     // MARK: - Settings

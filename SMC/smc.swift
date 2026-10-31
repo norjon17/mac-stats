@@ -209,12 +209,10 @@ public class SMC {
         var result: kern_return_t = 0
         var val: SMCVal_t = SMCVal_t(key)
         
+        // Any failure (key absent, SMC-level 0x83/0x85, transient sleep/wake transport errors)
+        // means "no value right now". Never log here: this runs once per key per tick.
         result = read(&val)
-        if result == kIOReturnNotFound { return nil }
-        if result != kIOReturnSuccess {
-            print("Error read(\(key)): " + (String(cString: mach_error_string(result), encoding: String.Encoding.ascii) ?? "unknown error"))
-            return nil
-        }
+        if result != kIOReturnSuccess { return nil }
         
         if val.dataSize > 0 {
             if val.bytes.first(where: { $0 != 0 }) == nil && val.key != "FS! " && val.key != "F0Md" && val.key != "F1Md" && val.key != "F0md" && val.key != "F1md" {
@@ -282,11 +280,7 @@ public class SMC {
         var val: SMCVal_t = SMCVal_t(key)
         
         result = read(&val)
-        if result == kIOReturnNotFound { return nil }
-        if result != kIOReturnSuccess {
-            print("Error read(\(key)): " + (String(cString: mach_error_string(result), encoding: String.Encoding.ascii) ?? "unknown error"))
-            return nil
-        }
+        if result != kIOReturnSuccess { return nil }
         
         if val.dataSize > 0 {
             if val.bytes.first(where: { $0 != 0}) == nil {
@@ -310,7 +304,6 @@ public class SMC {
                 
                 return (c1 + c2 + c3 + c4 + c5 + c6 + c7 + c8 + c9 + c10 + c11 + c12).trimmingCharacters(in: .whitespaces)
             default:
-                print("unsupported data type \(val.dataType) for key: \(key)")
                 return nil
             }
         }

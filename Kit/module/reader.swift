@@ -40,9 +40,7 @@ public protocol ReaderInternal_p {
 }
 
 open class Reader<T: Codable>: NSObject, ReaderInternal_p {
-    public var log: NextLog {
-        NextLog.shared.copy(category: "\(String(describing: self))")
-    }
+    public private(set) lazy var log: NextLog = NextLog.shared.copy(category: "\(String(describing: self))")
     private let valueQueue = DispatchQueue(label: "eu.exelban.readerActiveQueue")
     private var _value: T?
     public var value: T? {
@@ -64,8 +62,7 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
     
     public var callbackHandler: (T?) -> Void
     
-    private let module: ModuleType
-    private var history: Bool
+    public let module: ModuleType
     private var repeatTask: Repeater?
     private var locked: Bool = true
     private var initlizalized: Bool = false
@@ -77,33 +74,20 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
         set { self.activeQueue.sync { self._active = newValue } }
     }
     
-    private var lastDBWrite: Date? = nil
-    private let historyQueue = DispatchQueue(label: "eu.exelban.readerHistoryQueue")
-    private var lastHistoryRead: (uptime: TimeInterval, date: Date)? = nil
-    
     private var alignGeneration: UInt = 0
     private let alignQueue = DispatchQueue(label: "eu.exelban.readerAlignQueue")
     
+    // `history` is kept for source compatibility only; readers hold their latest value in memory and nothing is persisted.
     public init(_ module: ModuleType, popup: Bool = false, preview: Bool = false, history: Bool = false, callback: @escaping (T?) -> Void = {_ in }) {
         self.popup = popup
         self.preview = preview
         self.module = module
-        self.history = history
         self.callbackHandler = callback
         
         super.init()
-        DB.shared.setup(T.self, "\(module.stringValue)@\(self.name)")
-        if let lastValue = DB.shared.findOne(T.self, key: "\(module.stringValue)@\(self.name)") {
-            self.value = lastValue
-            callback(lastValue)
-        }
         self.setup()
         
         debug("Successfully initialize reader", log: self.log)
-    }
-    
-    deinit {
-        DB.shared.insert(key: "\(self.module.stringValue)@\(self.name)", value: self.value)
     }
     
     public func initStoreValues(title: String) {
@@ -113,45 +97,15 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
     }
     
     public func callback(_ value: T?) {
-        let moduleKey = "\(self.module.stringValue)@\(self.name)"
         self.value = value
         if let value {
-            self.recordHistory(value)
             self.callbackHandler(value)
-            SystemStats.shared.send(key: moduleKey, value: value)
-            if let ts = self.lastDBWrite, let interval = self.interval, Date().timeIntervalSince(ts) > interval * 10 {
-                DB.shared.insert(key: moduleKey, value: value)
-                self.lastDBWrite = Date()
-            } else if self.lastDBWrite == nil {
-                DB.shared.insert(key: moduleKey, value: value)
-                self.lastDBWrite = Date()
-            }
         }
     }
     
     open func read() {}
     open func setup() {}
     open func terminate() {}
-    
-    private func recordHistory(_ value: T) {
-        guard self.history, self.active else { return }
-        
-        self.historyQueue.sync {
-            guard self.active else { return }
-            let now = ProcessInfo.processInfo.systemUptime
-            let date = Date()
-            let interval = self.interval ?? Double(self.defaultInterval)
-            let previous = self.lastHistoryRead
-            self.lastHistoryRead = (now, date)
-            guard let previous else { return }
-            
-            let elapsed = now - previous.uptime
-            guard elapsed > 0, elapsed <= interval * 3 else { return }
-            guard abs(date.timeIntervalSince(previous.date) - elapsed) < max(interval, 1) else { return }
-            
-            DB.shared.recordHistory(key: "\(self.module.stringValue)@\(self.name)", value: value, at: date, duration: elapsed)
-        }
-    }
     
     open func start() {
         if (self.popup || self.preview || self.sleep) && self.locked {
@@ -186,7 +140,6 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
             self.repeatTask?.pause()
         }
         self.active = false
-        self.historyQueue.sync { self.lastHistoryRead = nil }
     }
     
     open func stop() {
@@ -197,7 +150,6 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
             self.initlizalized = false
         }
         self.active = false
-        self.historyQueue.sync { self.lastHistoryRead = nil }
     }
     
     public func setInterval(_ value: Int) {
@@ -216,10 +168,6 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
                 self.repeatTask?.reset(seconds: value, restart: self.active)
             }
         }
-    }
-    
-    public func save(_ value: T) {
-        DB.shared.insert(key: "\(self.module.stringValue)@\(self.name)", value: value, force: true)
     }
     
     private func delayToNextSecondBoundary() -> TimeInterval {

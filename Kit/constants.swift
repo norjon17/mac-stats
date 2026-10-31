@@ -53,14 +53,8 @@ public struct Constants {
 public enum ModuleType: Int {
     case CPU
     case RAM
-    case GPU
-    case disk
     case sensors
     case network
-    case battery
-    case bluetooth
-    case clock
-    case remote
     
     case combined
     
@@ -68,14 +62,8 @@ public enum ModuleType: Int {
         switch self {
         case .CPU: return "CPU"
         case .RAM: return "RAM"
-        case .GPU: return "GPU"
-        case .disk: return "Disk"
         case .sensors: return "Sensors"
         case .network: return "Network"
-        case .battery: return "Battery"
-        case .bluetooth: return "Bluetooth"
-        case .clock: return "Clock"
-        case .remote: return "Remote"
         case .combined: return ""
         }
     }
@@ -84,9 +72,7 @@ public enum ModuleType: Int {
         switch self {
         case .CPU: return 0
         case .RAM: return 1
-        case .disk: return 3
         case .network: return 4
-        case .battery: return 2
         default: return nil
         }
     }

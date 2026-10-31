@@ -77,14 +77,6 @@ public let CombinedModulesSpacings: [KeyValue_t] = [
     KeyValue_t(key: "8", value: "8", additional: 8)
 ]
 
-public let PublicIPAddressRefreshIntervals: [KeyValue_t] = [
-    KeyValue_t(key: "never", value: "Never"),
-    KeyValue_t(key: "separator", value: "separator"),
-    KeyValue_t(key: "hour", value: "Every hour"),
-    KeyValue_t(key: "12", value: "Every 12 hours"),
-    KeyValue_t(key: "24", value: "Every 24 hours")
-]
-
 public enum DataSizeBase: String {
     case bit
     case byte
@@ -153,24 +145,6 @@ internal let SpeedPictogramColor: [KeyValue_t] = [
     KeyValue_t(key: "constant", value: "Constant color")
 ]
 
-internal let BatteryAdditionals: [KeyValue_t] = [
-    KeyValue_t(key: "none", value: "None"),
-    KeyValue_t(key: "separator", value: "separator"),
-    KeyValue_t(key: "innerPercentage", value: "Percentage inside the icon"),
-    KeyValue_t(key: "separator", value: "separator"),
-    KeyValue_t(key: "percentage", value: "Percentage"),
-    KeyValue_t(key: "time", value: "Time"),
-    KeyValue_t(key: "percentageAndTime", value: "Percentage and time"),
-    KeyValue_t(key: "timeAndPercentage", value: "Time and percentage")
-]
-
-internal let BatteryInfo: [KeyValue_t] = [
-    KeyValue_t(key: "percentage", value: "Percentage"),
-    KeyValue_t(key: "time", value: "Time"),
-    KeyValue_t(key: "percentageAndTime", value: "Percentage and time"),
-    KeyValue_t(key: "timeAndPercentage", value: "Time and percentage")
-]
-
 public let ShortLong: [KeyValue_t] = [
     KeyValue_t(key: "short", value: "Short"),
     KeyValue_t(key: "long", value: "Long")
@@ -185,12 +159,6 @@ public let ReaderUpdateIntervals: [KeyValue_t] = [
     KeyValue_t(key: "15", value: "15 sec"),
     KeyValue_t(key: "30", value: "30 sec"),
     KeyValue_t(key: "60", value: "60 sec")
-]
-public let NumbersOfProcesses: [Int] = [0, 3, 5, 8, 10, 15]
-
-public let NetworkReaders: [KeyValue_t] = [
-    KeyValue_t(key: "interface", value: "Interface based"),
-    KeyValue_t(key: "process", value: "Processes based")
 ]
 
 internal let Alignments: [KeyValue_t] = [
@@ -303,21 +271,12 @@ public extension Notification.Name {
     static let togglePreview = Notification.Name("togglePreview")
     static let openModuleSettings = Notification.Name("openModuleSettings")
     static let clickInSettings = Notification.Name("clickInSettings")
-    static let refreshPublicIP = Notification.Name("refreshPublicIP")
     static let resetTotalNetworkUsage = Notification.Name("resetTotalNetworkUsage")
-    static let syncFansControl = Notification.Name("syncFansControl")
-    static let checkFanModes = Notification.Name("checkFanModes")
-    static let fanHelperState = Notification.Name("fanHelperState")
     static let toggleOneView = Notification.Name("toggleOneView")
     static let widgetRearrange = Notification.Name("widgetRearrange")
     static let moduleRearrange = Notification.Name("moduleRearrange")
     static let pause = Notification.Name("pause")
-    static let toggleFanControl = Notification.Name("toggleFanControl")
     static let combinedModulesPopup = Notification.Name("combinedModulesPopup")
-    static let remoteLoginSuccess = Notification.Name("remoteLoginSuccess")
-    static let remoteState = Notification.Name("remoteState")
-    static let remoteAuthenticated = Notification.Name("remoteAuthenticated")
-    static let remoteUpdate = Notification.Name("remoteUpdate")
     static let openWindow = Notification.Name("openWindow")
 }
 
@@ -378,15 +337,6 @@ extension Scale: CaseIterable {
         return Scale.allCases.first{ $0.key == key } ?? defaultValue
     }
 }
-
-public enum FanValue: String {
-    case rpm
-    case percentage
-}
-public let FanValues: [KeyValue_t] = [
-    KeyValue_t(key: "rpm", value: "RPM", additional: FanValue.rpm),
-    KeyValue_t(key: "percentage", value: "Percentage", additional: FanValue.percentage)
-]
 
 public var LineChartHistory: [KeyValue_p] = [
     KeyValue_t(key: "60", value: "1 minute"),

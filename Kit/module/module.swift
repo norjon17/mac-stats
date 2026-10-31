@@ -88,7 +88,6 @@ open class Module {
         get { Store.shared.int(key: "\(self.name)_position", defaultValue: 0) }
         set { Store.shared.set(key: "\(self.name)_position", value: newValue) }
     }
-    public var userDefaults: UserDefaults? = UserDefaults(suiteName: "\(Bundle.main.object(forInfoDictionaryKey: "TeamId") as! String).eu.exelban.Stats.widgets")
     
     public var popupKeyboardShortcut: [UInt16] { self.popupView?.keyboardShortcut ?? [] }
     
@@ -130,7 +129,6 @@ open class Module {
         self.menuBar = MenuBar(moduleName: self.config.name)
         self.available = self.isAvailable()
         self.enabled = Store.shared.bool(key: "\(self.config.name)_state", defaultValue: self.config.defaultState)
-        self.userDefaults?.set(self.enabled, forKey: "\(self.config.name)_state")
         
         if !self.available {
             debug("Module is not available", log: self.log)
@@ -209,7 +207,6 @@ open class Module {
         
         self.enabled = true
         Store.shared.set(key: "\(self.config.name)_state", value: true)
-        self.userDefaults?.set(true, forKey: "\(self.config.name)_state")
         self.startReaders()
         self.menuBar.enable()
         self.window?.setState(self.enabled)
@@ -223,7 +220,6 @@ open class Module {
         self.enabled = false
         if !self.pauseState { // omit saving the disable state when toggle by pause, need for resume state restoration
             Store.shared.set(key: "\(self.config.name)_state", value: false)
-            self.userDefaults?.set(false, forKey: "\(self.config.name)_state")
         }
         self.readers.forEach {
             $0.lock()

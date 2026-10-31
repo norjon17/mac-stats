@@ -1,0 +1,169 @@
+name: Stats
+options:
+  bundleIdPrefix: eu.exelban
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: false
+  groupSortPosition: top
+
+settings:
+  base:
+    ARCHS: arm64
+    MACOSX_DEPLOYMENT_TARGET: "26.0"
+    SWIFT_VERSION: "5.0"
+    SWIFT_STRICT_CONCURRENCY: minimal
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ENABLE_HARDENED_RUNTIME: NO
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+    GENERATE_INFOPLIST_FILE: NO
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: 1
+    CLANG_ENABLE_MODULES: YES
+  configs:
+    Debug:
+      SWIFT_OPTIMIZATION_LEVEL: "-Onone"
+    Release:
+      SWIFT_OPTIMIZATION_LEVEL: "-O"
+
+targetTemplates:
+  Module:
+    type: framework
+    platform: macOS
+    settings:
+      base:
+        DEFINES_MODULE: YES
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/Frameworks"
+        PRODUCT_NAME: "$(TARGET_NAME:c99extidentifier)"
+    dependencies:
+      - target: Kit
+        embed: false
+
+targets:
+  Kit:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Kit
+        excludes:
+          - "Supporting Files/Info.plist"
+      - path: SMC/smc.swift
+    settings:
+      base:
+        INFOPLIST_FILE: "Kit/Supporting Files/Info.plist"
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats.Kit
+        DEFINES_MODULE: YES
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks @loader_path/Frameworks"
+    dependencies:
+      - sdk: IOKit.framework
+
+  CPU:
+    templates: [Module]
+    sources:
+      - path: Modules/CPU
+        excludes: [Info.plist]
+    settings:
+      base:
+        INFOPLIST_FILE: Modules/CPU/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats.CPU
+
+  RAM:
+    templates: [Module]
+    sources:
+      - path: Modules/RAM
+        excludes: [Info.plist]
+    settings:
+      base:
+        INFOPLIST_FILE: Modules/RAM/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats.RAM
+
+  Sensors:
+    templates: [Module]
+    sources:
+      - path: Modules/Sensors
+        excludes: [Info.plist]
+      - path: SMC/smc.swift
+    settings:
+      base:
+        INFOPLIST_FILE: Modules/Sensors/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats.Sensors
+    dependencies:
+      - sdk: IOKit.framework
+
+  Net:
+    templates: [Module]
+    sources:
+      - path: Modules/Net
+        excludes: [Info.plist]
+    settings:
+      base:
+        INFOPLIST_FILE: Modules/Net/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats.Net
+
+  Stats:
+    type: application
+    platform: macOS
+    sources:
+      - path: Stats
+        excludes:
+          - "Supporting Files/Info.plist"
+    settings:
+      base:
+        INFOPLIST_FILE: "Stats/Supporting Files/Info.plist"
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats
+        PRODUCT_NAME: Stats
+        ASSETCATALOG_COMPILER_APPICON_NAME: Stats
+        ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS: YES
+        LD_RUNPATH_SEARCH_PATHS: "@executable_path/../Frameworks"
+        CODE_SIGN_ENTITLEMENTS: ""
+    dependencies:
+      - target: Kit
+      - target: CPU
+      - target: RAM
+      - target: Sensors
+      - target: Net
+
+  SMC:
+    type: tool
+    platform: macOS
+    sources:
+      - path: SMC
+    settings:
+      base:
+        PRODUCT_NAME: smc
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats.SMC
+    dependencies:
+      - sdk: IOKit.framework
+
+  Tests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+        excludes: [Info.plist]
+    settings:
+      base:
+        INFOPLIST_FILE: Tests/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: eu.exelban.Stats.Tests
+    dependencies:
+      - target: Kit
+
+schemes:
+  Stats:
+    build:
+      targets:
+        Stats: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets: [Tests]
+    archive:
+      config: Release
+  SMC:
+    build:
+      targets:
+        SMC: all

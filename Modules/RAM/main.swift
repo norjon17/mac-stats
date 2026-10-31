@@ -12,7 +12,7 @@
 import Cocoa
 import Kit
 
-public struct RAM_Usage: Codable, RemoteType {
+public struct RAM_Usage: Codable {
     var total: Double
     var used: Double
     var free: Double
@@ -33,11 +33,6 @@ public struct RAM_Usage: Codable, RemoteType {
     
     public var usage: Double {
         get { Double((self.total - self.free) / self.total) }
-    }
-    
-    public func remote() -> Data? {
-        let string = "\(self.total),\(self.used),\(self.pressure.level),\(self.swap.used)$"
-        return string.data(using: .utf8)
     }
 }
 
@@ -60,7 +55,6 @@ public class RAM: Module {
     private let previewView: Preview
     
     private var usageReader: UsageReader? = nil
-    private var processReader: ProcessReader? = nil
     
     private var splitValueState: Bool {
         return Store.shared.bool(key: "\(self.config.name)_splitValue", defaultValue: false)
@@ -94,10 +88,6 @@ public class RAM: Module {
         Store.shared.string(key: "\(self.name)_textWidgetValue", defaultValue: "$mem.used/$mem.total ($pressure.value)")
     }
     
-    private var systemWidgetsUpdatesState: Bool {
-        self.userDefaults?.bool(forKey: "systemWidgetsUpdates_state") ?? false
-    }
-    
     public init() {
         self.settingsView = Settings(.RAM)
         self.popupView = Popup(.RAM)
@@ -119,32 +109,14 @@ public class RAM: Module {
             self?.usageReader?.read()
         }
         self.settingsView.setInterval = { [weak self] value in
-            self?.processReader?.read()
             self?.usageReader?.setInterval(value)
-        }
-        self.settingsView.setTopInterval = { [weak self] value in
-            self?.processReader?.setInterval(value)
         }
         
         self.usageReader = UsageReader(.RAM) { [weak self] value in
             self?.loadCallback(value)
         }
-        self.processReader = ProcessReader(.RAM) { [weak self] value in
-            if let list = value {
-                self?.popupView.processCallback(list)
-                self?.previewView.processCallback(list)
-            }
-        }
         
-        self.settingsView.callbackWhenUpdateNumberOfProcesses = { [weak self] in
-            self?.popupView.numberOfProcessesUpdated()
-            self?.previewView.numberOfProcessesUpdated()
-            DispatchQueue.global(qos: .background).async {
-                self?.processReader?.read()
-            }
-        }
-        
-        self.setReaders([self.usageReader, self.processReader])
+        self.setReaders([self.usageReader])
     }
     
     private func loadCallback(_ raw: RAM_Usage?) {
@@ -240,10 +212,6 @@ public class RAM: Module {
             case let widget as DotWidget: widget.setValue(value.pressure.value.pressureColor())
             default: break
             }
-        }
-        
-        if self.systemWidgetsUpdatesState {
-            SystemWidgetUpdates.shared.update(value, key: "RAM@UsageReader", kinds: [RAM_entry.kind, "UnitedWidget"], defaults: self.userDefaults)
         }
     }
 }

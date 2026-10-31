@@ -14,9 +14,6 @@ import Kit
 
 internal class Preview: PreviewWrapper {
     private var initialized: Bool = false
-    private var initializedAverage: Bool = false
-    private var initializedFrequency: Bool = false
-    private var initializedProcesses: Bool = false
     
     private var systemColorState: SColor = .secondRed
     private var systemColor: NSColor { self.systemColorState.additional as? NSColor ?? NSColor.systemRed }
@@ -27,31 +24,6 @@ internal class Preview: PreviewWrapper {
     private var chartColorState: SColor = .systemAccent
     private var chartColor: NSColor { self.chartColorState.additional as? NSColor ?? NSColor.systemBlue }
     
-    private var eCoresColor: NSColor {
-        let color = SColor.teal
-        let key = Store.shared.string(key: "\(self.module.stringValue)_eCoresColor", defaultValue: color.key)
-        if let c = SColor.fromString(key).additional as? NSColor {
-            return c
-        }
-        return color.additional as! NSColor
-    }
-    private var pCoresColor: NSColor {
-        let color = SColor.indigo
-        let key = Store.shared.string(key: "\(self.module.stringValue)_pCoresColor", defaultValue: color.key)
-        if let c = SColor.fromString(key).additional as? NSColor {
-            return c
-        }
-        return color.additional as! NSColor
-    }
-    private var sCoresColor: NSColor {
-        let color = SColor.orange
-        let key = Store.shared.string(key: "\(self.module.stringValue)_sCoresColor", defaultValue: color.key)
-        if let c = SColor.fromString(key).additional as? NSColor {
-            return c
-        }
-        return color.additional as! NSColor
-    }
-    
     private var circle: PieChartView? = nil
     private var bar: BarChartView? = nil
     private var loadLineChart: LineChartView? = nil
@@ -59,21 +31,8 @@ internal class Preview: PreviewWrapper {
     private var systemField: NSTextField? = nil
     private var userField: NSTextField? = nil
     private var idleField: NSTextField? = nil
-    private var average1Field: NSTextField? = nil
-    private var average5Field: NSTextField? = nil
-    private var average15Field: NSTextField? = nil
-    private var coresFreqField: NSTextField? = nil
-    private var eCoresFreqField: NSTextField? = nil
-    private var sCoresFreqField: NSTextField? = nil
-    private var pCoresFreqField: NSTextField? = nil
     
     private var cores: [CoreView] = []
-    private var processes: ProcessesView? = nil
-    private var processesSection: PreferencesSection? = nil
-    
-    private var numberOfProcesses: Int {
-        Store.shared.int(key: "\(self.module.stringValue)_processes", defaultValue: 8)
-    }
     
     public init(_ module: ModuleType) {
         super.init(type: module)
@@ -81,16 +40,6 @@ internal class Preview: PreviewWrapper {
         self.addArrangedSubview(PreferencesSection([self.totalView()]))
         self.addArrangedSubview(PreferencesSection(title: localizedString("Usage history"), [self.historyView()]))
         self.addArrangedSubview(PreferencesSection(title: localizedString("Load per core"), [self.coresView()]))
-        
-        let splitView = NSStackView()
-        splitView.orientation = .horizontal
-        splitView.distribution = .fillEqually
-        splitView.addArrangedSubview(PreferencesSection(title: localizedString("Average load"), [self.averageView()]))
-        splitView.addArrangedSubview(PreferencesSection(title: localizedString("Frequency"), [self.frequencyView()]))
-        
-        self.addArrangedSubview(splitView)
-        
-        self.addArrangedSubview(self.topProcesses())
         
         self.addArrangedSubview(NSView())
     }
@@ -249,83 +198,6 @@ internal class Preview: PreviewWrapper {
         return view
     }
     
-    private func averageView() -> NSView {
-        let view = NSStackView()
-        view.orientation = .vertical
-        view.distribution = .fillEqually
-        view.spacing = 2
-        
-        self.average1Field = previewRow(view, title: "\(localizedString("1 minute")):", value: "")
-        self.average5Field = previewRow(view, title: "\(localizedString("5 minutes")):", value: "")
-        self.average15Field = previewRow(view, title: "\(localizedString("15 minutes")):", value: "")
-        
-        return view
-    }
-    
-    private func frequencyView() -> NSView {
-        let view = NSStackView()
-        view.orientation = .vertical
-        view.distribution = .fillEqually
-        view.spacing = 2
-        
-        self.coresFreqField = previewRow(view, title: "\(localizedString("All cores")):", value: "")
-        
-        if isARM {
-            if SystemKit.shared.device.info.cpu?.eCores != nil {
-                self.eCoresFreqField = previewRow(view, color: self.eCoresColor, title: "\(localizedString("Efficiency cores")):", value: "")
-            }
-            if SystemKit.shared.device.info.cpu?.pCores != nil {
-                self.pCoresFreqField = previewRow(view, color: self.pCoresColor, title: "\(localizedString("Performance cores")):", value: "")
-            }
-            if SystemKit.shared.device.info.cpu?.sCores != nil {
-                self.sCoresFreqField = previewRow(view, color: self.sCoresColor, title: "\(localizedString("Super cores")):", value: "")
-            }
-        }
-        
-        return view
-    }
-    
-    private func topProcesses() -> NSView {
-        let view = ProcessesView(
-            values: [(localizedString("Usage"), nil)],
-            n: self.numberOfProcesses,
-            showPID: true,
-            showChart: true
-        )
-        self.processes = view
-        
-        let section = PreferencesSection(title: localizedString("Top processes"), [view])
-        section.isHidden = self.numberOfProcesses == 0
-        self.processesSection = section
-        
-        return section
-    }
-    
-    public func numberOfProcessesUpdated() {
-        self.processes?.setLock(false)
-        self.processes?.setNumberOfProcesses(self.numberOfProcesses)
-        self.processesSection?.isHidden = self.numberOfProcesses == 0
-        self.initializedProcesses = false
-    }
-    
-    public func processCallback(_ list: [TopProcess]?) {
-        guard let list else { return }
-        
-        DispatchQueue.main.async(execute: {
-            guard (self.window?.isVisible ?? false) || !self.initializedProcesses, let view = self.processes else { return }
-            
-            for i in 0..<view.count {
-                if list.indices.contains(i) {
-                    let process = list[i]
-                    view.set(i, process, [String(format: "%.1f%%", process.usage)], usage: ColorValue(process.usage / 100, color: self.chartColor))
-                } else {
-                    view.set(i, nil, [])
-                }
-            }
-            self.initializedProcesses = true
-        })
-    }
-    
     internal func loadCallback(_ value: CPU_Load) {
         DispatchQueue.main.async(execute: {
             if (self.window?.isVisible ?? false) || !self.initialized {
@@ -355,43 +227,6 @@ internal class Preview: PreviewWrapper {
                 self.initialized = true
             }
             self.loadLineChart?.addValue(value.totalUsage)
-        })
-    }
-    
-    public func averageCallback(_ value: CPU_AverageLoad?) {
-        guard let value else { return }
-        
-        DispatchQueue.main.async(execute: {
-            if (self.window?.isVisible ?? false) || !self.initializedFrequency {
-                self.average1Field?.stringValue = "\(value.load1)"
-                self.average5Field?.stringValue = "\(value.load5)"
-                self.average15Field?.stringValue = "\(value.load15)"
-                
-                self.initializedAverage = true
-            }
-        })
-    }
-    
-    public func frequencyCallback(_ value: CPU_Frequency?) {
-        guard let value else { return }
-        
-        DispatchQueue.main.async(execute: {
-            if (self.window?.isVisible ?? false) || !self.initializedFrequency {
-                if let v = value.value {
-                    self.coresFreqField?.stringValue = "\(Int(v)) MHz"
-                }
-                if let v = value.eCore {
-                    self.eCoresFreqField?.stringValue = "\(Int(v)) MHz"
-                }
-                if let v = value.pCore {
-                    self.pCoresFreqField?.stringValue = "\(Int(v)) MHz"
-                }
-                if let v = value.sCore {
-                    self.sCoresFreqField?.stringValue = "\(Int(v)) MHz"
-                }
-                
-                self.initializedFrequency = true
-            }
         })
     }
 }

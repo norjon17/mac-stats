@@ -17,17 +17,13 @@ internal class Settings: NSStackView, Settings_v {
     private var hyperthreadState: Bool = false
     private var splitValueState: Bool = false
     private var updateIntervalValue: Int = 1
-    private var updateTopIntervalValue: Int = 1
-    private var numberOfProcesses: Int = 8
     private var clustersGroupState: Bool = false
     
     private let title: String
     private var hasHyperthreadingCores = false
     
     public var callback: (() -> Void) = {}
-    public var callbackWhenUpdateNumberOfProcesses: (() -> Void) = {}
     public var setInterval: ((_ value: Int) -> Void) = {_ in }
-    public var setTopInterval: ((_ value: Int) -> Void) = {_ in }
     
     private var hyperthreadView: NSSwitch? = nil
     private var splitValueView: NSSwitch? = nil
@@ -40,8 +36,6 @@ internal class Settings: NSStackView, Settings_v {
         self.usagePerCoreState = Store.shared.bool(key: "\(self.title)_usagePerCore", defaultValue: self.usagePerCoreState)
         self.splitValueState = Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: self.splitValueState)
         self.updateIntervalValue = Store.shared.int(key: "\(self.title)_updateInterval", defaultValue: self.updateIntervalValue)
-        self.updateTopIntervalValue = Store.shared.int(key: "\(self.title)_updateTopInterval", defaultValue: self.updateTopIntervalValue)
-        self.numberOfProcesses = Store.shared.int(key: "\(self.title)_processes", defaultValue: self.numberOfProcesses)
         if !self.usagePerCoreState {
             self.hyperthreadState = false
         }
@@ -68,19 +62,6 @@ internal class Settings: NSStackView, Settings_v {
                 action: #selector(self.changeUpdateInterval),
                 items: ReaderUpdateIntervals,
                 selected: "\(self.updateIntervalValue)"
-            )),
-            PreferencesRow(localizedString("Update interval for top processes"), component: selectView(
-                action: #selector(self.changeUpdateTopInterval),
-                items: ReaderUpdateIntervals,
-                selected: "\(self.updateTopIntervalValue)"
-            ))
-        ]))
-        
-        self.addArrangedSubview(PreferencesSection([
-            PreferencesRow(localizedString("Number of top processes"), component: selectView(
-                action: #selector(self.changeNumberOfProcesses),
-                items: NumbersOfProcesses.map{ KeyValue_t(key: "\($0)", value: "\($0)") },
-                selected: "\(self.numberOfProcesses)"
             ))
         ]))
         
@@ -132,21 +113,6 @@ internal class Settings: NSStackView, Settings_v {
         self.updateIntervalValue = value
         Store.shared.set(key: "\(self.title)_updateInterval", value: value)
         self.setInterval(value)
-    }
-    
-    @objc private func changeUpdateTopInterval(_ sender: NSMenuItem) {
-        guard let key = sender.representedObject as? String, let value = Int(key) else { return }
-        self.updateTopIntervalValue = value
-        Store.shared.set(key: "\(self.title)_updateTopInterval", value: value)
-        self.setTopInterval(value)
-    }
-    
-    @objc private func changeNumberOfProcesses(_ sender: NSMenuItem) {
-        if let value = Int(sender.title) {
-            self.numberOfProcesses = value
-            Store.shared.set(key: "\(self.title)_processes", value: value)
-            self.callbackWhenUpdateNumberOfProcesses()
-        }
     }
     
     @objc func toggleUsagePerCore(_ sender: NSControl) {

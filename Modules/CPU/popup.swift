@@ -17,7 +17,7 @@ internal class Popup: PopupWrapper {
     private let chartHeight: CGFloat = 120 + Constants.Popup.separatorHeight + Constants.Popup.spacing*2
     private var detailsHeight: CGFloat {
         get {
-            var count: CGFloat = isARM ? 4 : 6
+            var count: CGFloat = 4
             if SystemKit.shared.device.info.cpu?.eCores != nil {
                 count += 1
             }
@@ -30,43 +30,14 @@ internal class Popup: PopupWrapper {
             return (22*count) + Constants.Popup.separatorHeight
         }
     }
-    private let averageHeight: CGFloat = (22*3) + Constants.Popup.separatorHeight
-    private var frequencyHeight: CGFloat {
-        get {
-            var count: CGFloat = 1
-            if SystemKit.shared.device.info.cpu?.eCores != nil {
-                count += 1
-            }
-            if SystemKit.shared.device.info.cpu?.sCores != nil {
-                count += 1
-            }
-            if SystemKit.shared.device.info.cpu?.pCores != nil {
-                count += 1
-            }
-            return (22*count) + Constants.Popup.separatorHeight
-        }
-    }
-    private let processHeight: CGFloat = 22
     
     private var systemField: NSTextField? = nil
     private var userField: NSTextField? = nil
     private var idleField: NSTextField? = nil
-    private var shedulerLimitField: NSTextField? = nil
-    private var speedLimitField: NSTextField? = nil
     private var eCoresField: NSTextField? = nil
     private var pCoresField: NSTextField? = nil
     private var sCoresField: NSTextField? = nil
     private var uptimeField: NSTextField? = nil
-    private var average1Field: NSTextField? = nil
-    private var average5Field: NSTextField? = nil
-    private var average15Field: NSTextField? = nil
-    private var coresFreqField: NSTextField? = nil
-    private var eCoresFreqField: NSTextField? = nil
-    private var pCoresFreqField: NSTextField? = nil
-    private var sCoresFreqField: NSTextField? = nil
-    private var eCoresFreqColorView: NSView? = nil
-    private var pCoresFreqColorView: NSView? = nil
-    private var sCoresFreqColorView: NSView? = nil
     
     private var systemColorView: NSView? = nil
     private var userColorView: NSView? = nil
@@ -82,17 +53,10 @@ internal class Popup: PopupWrapper {
     private var columnChart: ColumnChartView? = nil
     private var circle: PieChartView? = nil
     private var temperatureCircle: PieChartView? = nil
-    private var frequencyCircle: PieChartView? = nil
-    private var initializedProcesses: Bool = false
     
     private let loadCache = PopupCache<CPU_Load>()
     private let temperatureCache = PopupCache<Double>()
-    private let frequencyCache = PopupCache<CPU_Frequency>()
-    private let limitCache = PopupCache<CPU_Limit>()
-    private let averageCache = PopupCache<CPU_AverageLoad>()
     
-    private var processes: ProcessesView? = nil
-    private var maxFreq: Double = 0
     private var lineChartHistory: Int = 180
     private var lineChartScale: Scale = .none
     private var lineChartFixedScale: Double = 1
@@ -112,14 +76,6 @@ internal class Popup: PopupWrapper {
     private var sCoresColorState: SColor = .orange
     private var sCoresColor: NSColor { self.sCoresColorState.additional as? NSColor ?? NSColor.systemOrange }
     
-    private var processesView: NSView? = nil
-    
-    private var numberOfProcesses: Int {
-        Store.shared.int(key: "\(self.title)_processes", defaultValue: 8)
-    }
-    private var processesHeight: CGFloat {
-        (self.processHeight*CGFloat(self.numberOfProcesses)) + (self.numberOfProcesses == 0 ? 0 : Constants.Popup.separatorHeight + 22)
-    }
     private var uptimeValue: String {
         let form = DateComponentsFormatter()
         form.maximumUnitCount = 2
@@ -154,8 +110,6 @@ internal class Popup: PopupWrapper {
         self.addArrangedSubview(self.initDashboard())
         self.addArrangedSubview(self.initChart())
         self.addArrangedSubview(self.initDetails())
-        self.addArrangedSubview(self.initAverage())
-        self.addArrangedSubview(self.initProcesses())
         
         self.recalculateHeight()
     }
@@ -172,13 +126,6 @@ internal class Popup: PopupWrapper {
         self.uptimeField?.stringValue = self.uptimeValue
         self.replay(self.loadCache, render: self.renderLoad)
         self.replay(self.temperatureCache, render: self.renderTemperature)
-        self.replay(self.frequencyCache, render: self.renderFrequency)
-        self.replay(self.limitCache, render: self.renderLimit)
-        self.replay(self.averageCache, render: self.renderAverage)
-    }
-    
-    public override func disappear() {
-        self.processes?.setLock(false)
     }
     
     private func recalculateHeight() {
@@ -205,7 +152,6 @@ internal class Popup: PopupWrapper {
         
         let usage = NSView(frame: NSRect(x: usageX, y: (view.frame.height - usageSize)/2, width: usageSize, height: usageSize))
         let temperature = NSView(frame: NSRect(x: (usageX - 50)/2, y: (view.frame.height - 50)/2 - 3, width: 50, height: 50))
-        let frequency = NSView(frame: NSRect(x: (usageX+usageSize) + (usageX - 50)/2, y: 0, width: 50, height: self.dashboardHeight))
         
         self.circle = PieChartView(frame: NSRect(x: 0, y: 0, width: usage.frame.width, height: usage.frame.height), segments: [], drawValue: true)
         self.circle!.toolTip = localizedString("CPU usage")
@@ -216,14 +162,8 @@ internal class Popup: PopupWrapper {
         (self.temperatureCircle! as NSView).isHidden = true
         temperature.addSubview(self.temperatureCircle!)
         
-        self.frequencyCircle = PieChartView(frame: NSRect(x: 0, y: 0, width: frequency.frame.width, height: frequency.frame.height))
-        self.frequencyCircle!.toolTip = localizedString("CPU frequency")
-        (self.frequencyCircle! as NSView).isHidden = true
-        frequency.addSubview(self.frequencyCircle!)
-        
         view.addSubview(temperature)
         view.addSubview(usage)
-        view.addSubview(frequency)
         
         return view
     }
@@ -295,11 +235,6 @@ internal class Popup: PopupWrapper {
         (self.userColorView, _, self.userField) = popupWithColorRow(container, color: self.userColor, title: "\(localizedString("User")):", value: "")
         (self.idleColorView, _, self.idleField) = popupWithColorRow(container, color: self.idleColor.withAlphaComponent(0.5), title: "\(localizedString("Idle")):", value: "")
         
-        if !isARM {
-            self.shedulerLimitField = popupRow(container, title: "\(localizedString("Scheduler limit")):", value: "").1
-            self.speedLimitField = popupRow(container, title: "\(localizedString("Speed limit")):", value: "").1
-        }
-        
         if SystemKit.shared.device.info.cpu?.eCores != nil {
             (self.eCoresColorView, _, self.eCoresField) = popupWithColorRow(container, color: self.eCoresColor, title: "\(localizedString("Efficiency cores")):", value: "")
         }
@@ -316,75 +251,6 @@ internal class Popup: PopupWrapper {
         view.addSubview(separator)
         view.addSubview(container)
         
-        return view
-    }
-    
-    private func initAverage() -> NSView {
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: self.averageHeight))
-        view.heightAnchor.constraint(equalToConstant: view.bounds.height).isActive = true
-        let separator = separatorView(localizedString("Average load"), origin: NSPoint(x: 0, y: self.averageHeight-Constants.Popup.separatorHeight), width: self.frame.width)
-        let container: NSStackView = NSStackView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: separator.frame.origin.y))
-        container.orientation = .vertical
-        container.spacing = 0
-        
-        self.average1Field = popupRow(container, title: "\(localizedString("1 minute")):", value: "").1
-        self.average5Field = popupRow(container, title: "\(localizedString("5 minutes")):", value: "").1
-        self.average15Field = popupRow(container, title: "\(localizedString("15 minutes")):", value: "").1
-        
-        view.addSubview(separator)
-        view.addSubview(container)
-        
-        return view
-    }
-    
-    private func initFrequency() -> NSView {
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: self.frequencyHeight))
-        view.heightAnchor.constraint(equalToConstant: view.bounds.height).isActive = true
-        let separator = separatorView(localizedString("Frequency"), origin: NSPoint(x: 0, y: self.frequencyHeight-Constants.Popup.separatorHeight), width: self.frame.width)
-        let container: NSStackView = NSStackView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: separator.frame.origin.y))
-        container.orientation = .vertical
-        container.spacing = 0
-        
-        self.coresFreqField = popupRow(container, title: "\(localizedString("All cores")):", value: "").1
-        
-        if isARM {
-            if SystemKit.shared.device.info.cpu?.eCores != nil {
-                (self.eCoresFreqColorView, _, self.eCoresFreqField) = popupWithColorRow(container, color: self.eCoresColor, title: "\(localizedString("Efficiency cores")):", value: "")
-            }
-            if SystemKit.shared.device.info.cpu?.pCores != nil {
-                (self.pCoresFreqColorView, _, self.pCoresFreqField) = popupWithColorRow(container, color: self.pCoresColor, title: "\(localizedString("Performance cores")):", value: "")
-            }
-            if SystemKit.shared.device.info.cpu?.sCores != nil {
-                (self.sCoresFreqColorView, _, self.sCoresFreqField) = popupWithColorRow(container, color: self.sCoresColor, title: "\(localizedString("Super cores")):", value: "")
-            }
-        }
-        
-        view.addSubview(separator)
-        view.addSubview(container)
-        
-        return view
-    }
-    
-    private func initProcesses() -> NSView {
-        if self.numberOfProcesses == 0 {
-            let v = NSView()
-            self.processesView = v
-            return v
-        }
-        
-        let view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: self.frame.width, height: self.processesHeight))
-        let separator = separatorView(localizedString("Top processes"), origin: NSPoint(x: 0, y: self.processesHeight-Constants.Popup.separatorHeight), width: self.frame.width)
-        let container: ProcessesView = ProcessesView(
-            frame: NSRect(x: 0, y: 0, width: self.frame.width, height: separator.frame.origin.y),
-            values: [(localizedString("Usage"), nil)],
-            n: self.numberOfProcesses
-        )
-        self.processes = container
-        
-        view.addSubview(separator)
-        view.addSubview(container)
-        
-        self.processesView = view
         return view
     }
     
@@ -449,98 +315,6 @@ internal class Popup: PopupWrapper {
         self.temperatureCircle?.setValue(value/100)
         self.temperatureCircle?.setText(temperature(value))
         self.temperatureCircle?.display()
-    }
-    
-    public func frequencyCallback(_ value: CPU_Frequency?) {
-        guard let value else { return }
-        self.apply(value, to: self.frequencyCache, render: self.renderFrequency)
-    }
-    
-    private func renderFrequency(_ value: CPU_Frequency) {
-        if !self.frequencyCache.initialized {
-            self.insertArrangedSubview(self.initFrequency(), at: 4)
-            self.recalculateHeight()
-        }
-        if let view = self.frequencyCircle, (view as NSView).isHidden {
-            view.isHidden = false
-        }
-        
-        if let v = value.value {
-            if v > self.maxFreq {
-                self.maxFreq = v
-            }
-            
-            self.coresFreqField?.stringValue = "\(Int(v)) MHz"
-            if let circle = self.frequencyCircle {
-                circle.setValue((100*v)/self.maxFreq)
-                circle.setText("\((v/1000).rounded(toPlaces: 2))")
-                circle.toolTip = "\(localizedString("CPU frequency")): \(Int(v)) MHz - \(((100*v)/self.maxFreq).rounded(toPlaces: 2))%"
-                circle.display()
-            }
-        }
-        
-        if let v = value.eCore {
-            self.eCoresFreqField?.stringValue = "\(Int(v)) MHz"
-        }
-        if let v = value.pCore {
-            self.pCoresFreqField?.stringValue = "\(Int(v)) MHz"
-        }
-        if let v = value.sCore {
-            self.sCoresFreqField?.stringValue = "\(Int(v)) MHz"
-        }
-    }
-    
-    public func processCallback(_ list: [TopProcess]?) {
-        guard let list else { return }
-        
-        DispatchQueue.main.async(execute: {
-            if !(self.window?.isVisible ?? false) && self.initializedProcesses {
-                return
-            }
-            let list = list.map { $0 }
-            if list.count != self.processes?.count { self.processes?.clear() }
-            
-            for i in 0..<list.count {
-                let process = list[i]
-                self.processes?.set(i, process, ["\(process.usage)%"])
-            }
-            
-            self.initializedProcesses = true
-        })
-    }
-    
-    public func numberOfProcessesUpdated() {
-        if self.processes?.count == self.numberOfProcesses { return }
-        
-        DispatchQueue.main.async(execute: {
-            self.processesView?.removeFromSuperview()
-            self.processesView = nil
-            self.processes = nil
-            self.addArrangedSubview(self.initProcesses())
-            self.initializedProcesses = false
-            self.recalculateHeight()
-        })
-    }
-    
-    public func limitCallback(_ value: CPU_Limit?) {
-        guard let value else { return }
-        self.apply(value, to: self.limitCache, render: self.renderLimit)
-    }
-    
-    private func renderLimit(_ value: CPU_Limit) {
-        self.shedulerLimitField?.stringValue = "\(value.scheduler)%"
-        self.speedLimitField?.stringValue = "\(value.speed)%"
-    }
-    
-    public func averageCallback(_ value: CPU_AverageLoad?) {
-        guard let value else { return }
-        self.apply(value, to: self.averageCache, render: self.renderAverage)
-    }
-    
-    private func renderAverage(_ value: CPU_AverageLoad) {
-        self.average1Field?.stringValue = "\(value.load1)"
-        self.average5Field?.stringValue = "\(value.load5)"
-        self.average15Field?.stringValue = "\(value.load15)"
     }
     
     // MARK: - Settings
@@ -652,7 +426,6 @@ internal class Popup: PopupWrapper {
         Store.shared.set(key: "\(self.title)_eCoresColor", value: self.eCoresColorState.key)
         if let color = (self.eCoresColorState.additional as? NSColor) {
             self.eCoresColorView?.layer?.backgroundColor = color.cgColor
-            self.eCoresFreqColorView?.layer?.backgroundColor = color.cgColor
         }
     }
     @objc private func togglePCoresColor(_ sender: NSMenuItem) {
@@ -661,7 +434,6 @@ internal class Popup: PopupWrapper {
         Store.shared.set(key: "\(self.title)_pCoresColor", value: self.pCoresColorState.key)
         if let color = (self.pCoresColorState.additional as? NSColor) {
             self.pCoresColorView?.layer?.backgroundColor = color.cgColor
-            self.pCoresFreqColorView?.layer?.backgroundColor = color.cgColor
         }
     }
     @objc private func toggleSCoresColor(_ sender: NSMenuItem) {
@@ -670,7 +442,6 @@ internal class Popup: PopupWrapper {
         Store.shared.set(key: "\(self.title)_sCoresColor", value: self.sCoresColorState.key)
         if let color = (self.sCoresColorState.additional as? NSColor) {
             self.sCoresColorView?.layer?.backgroundColor = color.cgColor
-            self.sCoresFreqColorView?.layer?.backgroundColor = color.cgColor
         }
     }
     @objc private func toggleLineChartHistory(_ sender: NSMenuItem) {

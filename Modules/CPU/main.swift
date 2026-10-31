@@ -9,7 +9,7 @@
 import Cocoa
 import Kit
 
-public struct CPU_Load: Codable, RemoteType {
+public struct CPU_Load: Codable {
     public var totalUsage: Double = 0
     var usagePerCore: [Double] = []
     var usageECores: Double? = nil
@@ -19,39 +19,6 @@ public struct CPU_Load: Codable, RemoteType {
     var systemLoad: Double = 0
     var userLoad: Double = 0
     var idleLoad: Double = 0
-    
-    public func remote() -> Data? {
-        var string = "1,1,\(self.totalUsage),\(self.usagePerCore.count),"
-        for c in self.usagePerCore {
-            string += "\(c),"
-        }
-        string += "$"
-        return string.data(using: .utf8)
-    }
-}
-
-public struct CPU_Frequency: Codable {
-    var value: Double? = nil
-    var eCore: Double? = nil
-    var pCore: Double? = nil
-    var sCore: Double? = nil
-}
-
-public struct CPU_Limit: Codable {
-    var scheduler: Int = 0
-    var cpus: Int = 0
-    var speed: Int = 0
-}
-
-public struct CPU_AverageLoad: Codable, RemoteType {
-    var load1: Double = 0
-    var load5: Double = 0
-    var load15: Double = 0
-    
-    public func remote() -> Data? {
-        let string = "1,1,\(self.load1),\(self.load5),\(self.load15)$"
-        return string.data(using: .utf8)
-    }
 }
 
 public class CPU: Module {
@@ -62,11 +29,7 @@ public class CPU: Module {
     private let previewView: Preview
     
     private var loadReader: LoadReader? = nil
-    private var processReader: ProcessReader? = nil
     private var temperatureReader: TemperatureReader? = nil
-    private var frequencyReader: FrequencyReader? = nil
-    private var limitReader: LimitReader? = nil
-    private var averageLoadReader: AverageLoadReader? = nil
     
     private var usagePerCoreState: Bool {
         Store.shared.bool(key: "\(self.config.name)_usagePerCore", defaultValue: false)
@@ -119,10 +82,6 @@ public class CPU: Module {
         return color.additional as! NSColor
     }
     
-    private var systemWidgetsUpdatesState: Bool {
-        self.userDefaults?.bool(forKey: "systemWidgetsUpdates_state") ?? false
-    }
-    
     public init() {
         self.settingsView = Settings(.CPU)
         self.popupView = Popup(.CPU)
@@ -143,54 +102,20 @@ public class CPU: Module {
         self.loadReader = LoadReader(.CPU) { [weak self] value in
             self?.loadCallback(value)
         }
-        self.processReader = ProcessReader(.CPU) { [weak self] value in
-            self?.popupView.processCallback(value)
-            self?.previewView.processCallback(value)
-        }
-        self.averageLoadReader = AverageLoadReader(.CPU, popup: true) { [weak self] value in
-            self?.popupView.averageCallback(value)
-            self?.previewView.averageCallback(value)
-        }
         self.temperatureReader = TemperatureReader(.CPU, popup: true) { [weak self] value in
             self?.popupView.temperatureCallback(value)
         }
         
-        #if arch(x86_64)
-        self.limitReader = LimitReader(.CPU, popup: true) { [weak self] value in
-            self?.popupView.limitCallback(value)
-        }
-        #else
-        self.frequencyReader = FrequencyReader(.CPU) { [weak self] value in
-            self?.popupView.frequencyCallback(value)
-            self?.previewView.frequencyCallback(value)
-        }
-        #endif
-        
         self.settingsView.callback = { [weak self] in
             self?.loadReader?.read()
-        }
-        self.settingsView.callbackWhenUpdateNumberOfProcesses = { [weak self] in
-            guard let self else { return }
-            self.popupView.numberOfProcessesUpdated()
-            self.previewView.numberOfProcessesUpdated()
-            DispatchQueue.global(qos: .background).async { [weak self] in
-                self?.processReader?.read()
-            }
         }
         self.settingsView.setInterval = { [weak self] value in
             self?.loadReader?.setInterval(value)
         }
-        self.settingsView.setTopInterval = { [weak self] value in
-            self?.processReader?.setInterval(value)
-        }
         
         self.setReaders([
             self.loadReader,
-            self.processReader,
-            self.temperatureReader,
-            self.frequencyReader,
-            self.limitReader,
-            self.averageLoadReader
+            self.temperatureReader
         ])
     }
     
@@ -260,10 +185,6 @@ public class CPU: Module {
                 ])
             default: break
             }
-        }
-        
-        if self.systemWidgetsUpdatesState {
-            SystemWidgetUpdates.shared.update(value, key: "CPU@LoadReader", kinds: [CPU_entry.kind, "UnitedWidget"], defaults: self.userDefaults)
         }
     }
 }

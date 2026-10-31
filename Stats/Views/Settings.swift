@@ -69,7 +69,6 @@ class SettingsWindow: NSWindow, NSWindowDelegate, NSToolbarDelegate {
         newToolbar.allowsUserCustomization = false
         newToolbar.autosavesConfiguration = true
         newToolbar.displayMode = .default
-        newToolbar.showsBaselineSeparator = true
         newToolbar.delegate = self
         
         self.toolbar = newToolbar
@@ -326,7 +325,6 @@ private class MainView: NSView {
 private class SidebarView: NSStackView {
     private let scrollView: ScrollableStackView
     
-    private let supportPopover = NSPopover()
     private var pauseButton: NSButton? = nil
     
     private var pauseState: Bool {
@@ -358,9 +356,6 @@ private class SidebarView: NSStackView {
         self.scrollView.stackView.addArrangedSubview(MenuItem(icon: self.dashboardIcon, title: "Dashboard"))
         self.scrollView.stackView.addArrangedSubview(spacer)
         
-        self.supportPopover.behavior = .transient
-        self.supportPopover.contentViewController = self.supportView()
-        
         let additionalButtons: NSStackView = NSStackView(frame: NSRect(x: 0, y: 0, width: frame.width, height: 45))
         additionalButtons.heightAnchor.constraint(equalToConstant: 45).isActive = true
         additionalButtons.orientation = .horizontal
@@ -372,7 +367,7 @@ private class SidebarView: NSStackView {
         self.pauseButton = pauseButton
         
         additionalButtons.addArrangedSubview(self.makeButton(title: localizedString("Settings"), image: self.settingsIcon, action: #selector(openSettings)))
-        additionalButtons.addArrangedSubview(self.makeButton(title: localizedString("Support the application"), image: self.supportIcon, action: #selector(donate)))
+        additionalButtons.addArrangedSubview(self.makeButton(title: "Upstream project (exelban/stats)", image: self.supportIcon, action: #selector(openUpstream)))
         additionalButtons.addArrangedSubview(self.makeButton(title: localizedString("Report a bug"), image: self.bugIcon, action: #selector(reportBug)))
         additionalButtons.addArrangedSubview(pauseButton)
         additionalButtons.addArrangedSubview(self.makeButton(title: localizedString("Close application"), image: self.closeIcon, action: #selector(closeApp)))
@@ -438,39 +433,6 @@ private class SidebarView: NSStackView {
         return button
     }
     
-    private func supportView() -> NSViewController {
-        let vc: NSViewController = NSViewController(nibName: nil, bundle: nil)
-        let view: NSStackView = NSStackView(frame: NSRect(x: 0, y: 0, width: 220, height: 54))
-        view.spacing = 10
-        view.edgeInsets = NSEdgeInsets(top: 0, left: 15, bottom: 0, right: 0)
-        view.orientation = .horizontal
-        
-        let systemStats = SupportButtonView(name: "System Stats", image: "Stats", action: {
-            NSWorkspace.shared.open(URL(string: "https://www.system-stats.com")!)
-        })
-        let github = SupportButtonView(name: "GitHub Sponsors", image: "github", action: {
-            NSWorkspace.shared.open(URL(string: "https://github.com/sponsors/exelban")!)
-        })
-        let paypal = SupportButtonView(name: "PayPal", image: "paypal", action: {
-            NSWorkspace.shared.open(URL(string: "https://www.paypal.com/donate?hosted_button_id=3DS5JHDBATMTC")!)
-        })
-        let koFi = SupportButtonView(name: "Ko-fi", image: "ko-fi", action: {
-            NSWorkspace.shared.open(URL(string: "https://ko-fi.com/exelban")!)
-        })
-        let patreon = SupportButtonView(name: "Patreon", image: "patreon", action: {
-            NSWorkspace.shared.open(URL(string: "https://patreon.com/exelban")!)
-        })
-        
-        view.addArrangedSubview(systemStats)
-        view.addArrangedSubview(github)
-        view.addArrangedSubview(paypal)
-        view.addArrangedSubview(koFi)
-        view.addArrangedSubview(patreon)
-        
-        vc.view = view
-        return vc
-    }
-    
     @objc private func openSettings() {
         NotificationCenter.default.post(name: .openModuleSettings, object: nil, userInfo: ["module": "Settings"])
     }
@@ -479,8 +441,8 @@ private class SidebarView: NSStackView {
         NSWorkspace.shared.open(URL(string: "https://github.com/exelban/stats/issues/new?template=bug_report.yml")!)
     }
     
-    @objc private func donate(_ sender: NSButton) {
-        self.supportPopover.show(relativeTo: sender.bounds, of: sender, preferredEdge: NSRectEdge.minY)
+    @objc private func openUpstream() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/exelban/stats")!)
     }
     
     @objc private func closeApp(_ sender: NSButton) {

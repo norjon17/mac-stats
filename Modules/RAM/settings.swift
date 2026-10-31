@@ -44,31 +44,23 @@ You can use a combination of any of the variables.
 
 internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
     private var updateIntervalValue: Int = 1
-    private var updateTopIntervalValue: Int = 1
-    private var numberOfProcesses: Int = 8
     private var splitValueState: Bool = false
     private var notificationLevel: String = "Disabled"
     private var textValue: String = "$mem.used/$mem.total ($pressure.value)"
-    private var combinedProcessesState: Bool = false
     
     private let title: String
     
     public var callback: (() -> Void) = {}
-    public var callbackWhenUpdateNumberOfProcesses: (() -> Void) = {}
     public var setInterval: ((_ value: Int) -> Void) = {_ in }
-    public var setTopInterval: ((_ value: Int) -> Void) = {_ in }
     
     private let textWidgetHelpPanel: HelpHUD = HelpHUD(textWidgetHelp)
     
     public init(_ module: ModuleType) {
         self.title = module.stringValue
         self.updateIntervalValue = Store.shared.int(key: "\(self.title)_updateInterval", defaultValue: self.updateIntervalValue)
-        self.updateTopIntervalValue = Store.shared.int(key: "\(self.title)_updateTopInterval", defaultValue: self.updateTopIntervalValue)
-        self.numberOfProcesses = Store.shared.int(key: "\(self.title)_processes", defaultValue: self.numberOfProcesses)
         self.splitValueState = Store.shared.bool(key: "\(self.title)_splitValue", defaultValue: self.splitValueState)
         self.notificationLevel = Store.shared.string(key: "\(self.title)_notificationLevel", defaultValue: self.notificationLevel)
         self.textValue = Store.shared.string(key: "\(self.title)_textWidgetValue", defaultValue: self.textValue)
-        self.combinedProcessesState = Store.shared.bool(key: "\(self.title)_combinedProcesses", defaultValue: self.combinedProcessesState)
         
         super.init(frame: NSRect.zero)
         
@@ -89,23 +81,6 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
                 action: #selector(self.changeUpdateInterval),
                 items: ReaderUpdateIntervals,
                 selected: "\(self.updateIntervalValue)"
-            )),
-            PreferencesRow(localizedString("Update interval for top processes"), component: selectView(
-                action: #selector(self.changeUpdateTopInterval),
-                items: ReaderUpdateIntervals,
-                selected: "\(self.updateTopIntervalValue)"
-            ))
-        ]))
-        
-        self.addArrangedSubview(PreferencesSection([
-            PreferencesRow(localizedString("Combined processes"), component: switchView(
-                action: #selector(toggleCombinedProcesses),
-                state: self.combinedProcessesState
-            )),
-            PreferencesRow(localizedString("Number of top processes"), component: selectView(
-                action: #selector(changeNumberOfProcesses),
-                items: NumbersOfProcesses.map{ KeyValue_t(key: "\($0)", value: "\($0)") },
-                selected: "\(self.numberOfProcesses)"
             ))
         ]))
         
@@ -151,27 +126,9 @@ internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
         Store.shared.set(key: "\(self.title)_updateInterval", value: value)
         self.setInterval(value)
     }
-    @objc private func changeUpdateTopInterval(_ sender: NSMenuItem) {
-        guard let key = sender.representedObject as? String, let value = Int(key) else { return }
-        self.updateTopIntervalValue = value
-        Store.shared.set(key: "\(self.title)_updateTopInterval", value: value)
-        self.setTopInterval(value)
-    }
-    @objc private func changeNumberOfProcesses(_ sender: NSMenuItem) {
-        if let value = Int(sender.title) {
-            self.numberOfProcesses = value
-            Store.shared.set(key: "\(self.title)_processes", value: value)
-            self.callbackWhenUpdateNumberOfProcesses()
-        }
-    }
     @objc private func toggleSplitValue(_ sender: NSControl) {
         self.splitValueState = controlState(sender)
         Store.shared.set(key: "\(self.title)_splitValue", value: self.splitValueState)
-        self.callback()
-    }
-    @objc private func toggleCombinedProcesses(_ sender: NSControl) {
-        self.combinedProcessesState = controlState(sender)
-        Store.shared.set(key: "\(self.title)_combinedProcesses", value: self.combinedProcessesState)
         self.callback()
     }
     

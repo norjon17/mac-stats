@@ -73,7 +73,21 @@ public class NextLog {
     }
     
     public func log(level: LogLevel, options: [LogOption] = LogOption.new(), message: String, file: String = #file, line: UInt = #line) {
-        self.writer.write(self.prefix(level, options, file, line) + " " + message + "\n")
+        switch level {
+        case .debug:
+            guard NextLog.debugEnabled else { return }
+            self.writer.write(self.prefix(level, options, file, line) + " " + message + "\n")
+        case .info:
+            self.writer.write(self.prefix(level, options, file, line) + " " + message + "\n")
+        case .error:
+            guard let released = NextLog.rateLimiter.admit(file: file, line: line) else { return }
+            var text = self.prefix(level, options, file, line) + " " + message
+            if released > 0 {
+                text += " (suppressed \(released) repeats)"
+            }
+            text += "\n"
+            self.writer.write(text)
+        }
     }
     
     public func setWriter(_ writer: LogWriter) {
@@ -140,6 +154,65 @@ public class NextLog {
 }
 
 extension NextLog {
+    /// Debug output is enabled by launching with `--debug` or by the `debug_logging` Store key.
+    /// Evaluated once on first use and cached for the lifetime of the process.
+    public static let debugEnabled: Bool = {
+        if CommandLine.arguments.contains("--debug") {
+            return true
+        }
+        return Store.shared.bool(key: "debug_logging", defaultValue: false)
+    }()
+    
+    /// Per call-site (file + line) rate limiter for error level logs:
+    /// at most one line per `window` seconds per site. Repeats inside the
+    /// window are counted and reported when the next line is released.
+    fileprivate static let rateLimiter = RateLimiter(window: 60)
+    
+    fileprivate final class RateLimiter {
+        private struct Site: Hashable {
+            let file: String
+            let line: UInt
+        }
+        private struct State {
+            var lastEmitted: TimeInterval
+            var suppressed: Int
+        }
+        
+        private let window: TimeInterval
+        private let lock = NSLock()
+        private var sites: [Site: State] = [:]
+        
+        init(window: TimeInterval) {
+            self.window = window
+        }
+        
+        /// Returns nil when the line must be suppressed, otherwise the number
+        /// of lines that were suppressed at this site since the last release.
+        func admit(file: String, line: UInt) -> Int? {
+            let site = Site(file: file, line: line)
+            let now = ProcessInfo.processInfo.systemUptime
+            
+            self.lock.lock()
+            defer { self.lock.unlock() }
+            
+            if var state = self.sites[site] {
+                if now - state.lastEmitted < self.window {
+                    state.suppressed &+= 1
+                    self.sites[site] = state
+                    return nil
+                }
+                let released = state.suppressed
+                state.lastEmitted = now
+                state.suppressed = 0
+                self.sites[site] = state
+                return released
+            }
+            
+            self.sites[site] = State(lastEmitted: now, suppressed: 0)
+            return 0
+        }
+    }
+    
     private static let timestampFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")

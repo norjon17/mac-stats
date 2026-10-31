@@ -42,6 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
 
     static func main() {
         let launchStart = Date()
+        Store.migrateDefaults(from: "eu.exelban.Stats")
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
         NextLog.startSession("Stats \(version) on macOS \(ProcessInfo.processInfo.operatingSystemVersionString)")
         let app = NSApplication.shared
@@ -81,12 +82,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
             return event
         }
 
-        info("Stats started in \((startingPoint.timeIntervalSinceNow * -1).rounded(toPlaces: 4)) seconds")
+        info("mac-stats started in \((startingPoint.timeIntervalSinceNow * -1).rounded(toPlaces: 4)) seconds")
         self.startTS = Date()
     }
 
     func applicationWillTerminate(_ aNotification: Notification) {
-        info("Stats terminating, \(HealthMonitor.shared.snapshot())")
+        info("mac-stats terminating, \(HealthMonitor.shared.snapshot())")
         HealthMonitor.shared.stop()
         modules.forEach{ $0.terminate() }
     }

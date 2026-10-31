@@ -1,13 +1,13 @@
 # mac-stats
 
-A trimmed fork of [exelban/stats](https://github.com/exelban/stats) that shows four things in the macOS menu bar and nothing else:
+A small macOS menu bar monitor, inspired by and forked from [exelban/stats](https://github.com/exelban/stats), that shows four things and nothing else:
 
 - CPU usage
 - RAM usage
 - CPU and GPU temperature
 - Network download and upload speed
 
-Built for Apple Silicon on macOS 26 and newer. Ad-hoc signed, no network access, no telemetry, no updater, no privileged helper.
+Built for Apple Silicon on macOS 26 and newer. Ad-hoc signed, no network access, no telemetry, no updater, no privileged helper. Vibe coded with Claude.
 
 ## Why a fork
 
@@ -27,8 +27,9 @@ What was fixed on the way (from a reader audit of the upstream code):
 Requirements: Xcode 27 or newer, [XcodeGen](https://github.com/yonaskolb/XcodeGen) (`brew install xcodegen`).
 
 ```sh
-Scripts/build.sh            # builds build/Stats.app
-Scripts/build.sh --install  # builds and replaces /Applications/Stats.app
+Scripts/build.sh            # builds build/mac-stats.app
+Scripts/build.sh --install  # builds and replaces /Applications/mac-stats.app
+Scripts/package.sh          # builds a .dmg and a .pkg installer into build/
 ```
 
 The Xcode project is generated from `project.yml` and is not committed. To open it in Xcode, run `xcodegen generate` first. Edit `project.yml`, not the project, when adding files or targets.
@@ -47,29 +48,35 @@ Some transparent-proxy system extensions (Kaspersky's, for one) leave the interf
 
 ## Logs
 
-The app writes `~/Library/Logs/Stats/stats.log` (rotated at 5 MB, three old copies kept). Settings → Information has an "Open log folder" button. Every line has a timestamp, source file and line, level (`INF`/`ERR`/`DBG`) and module. Info and error lines are also mirrored to the unified log under subsystem `eu.exelban.Stats`, so Console.app shows them.
+The app writes `~/Library/Logs/mac-stats/stats.log` (rotated at 5 MB, three old copies kept). Settings → Information has an "Open log folder" button. Every line has a timestamp, source file and line, level (`INF`/`ERR`/`DBG`) and module. Info and error lines are also mirrored to the unified log under subsystem `com.ronjoncapul.macstats`, so Console.app shows them.
 
 What gets logged without `--debug`: a session header with version, macOS and chip; a `health` line every 10 minutes with resident memory, CPU time and thread count; module enable/disable; sensor discovery; sleep and wake; termination; and errors, rate-limited to one per minute per call site with a suppressed-repeat count.
 
 Useful scans after a long run:
 
 ```sh
-grep ' ERR ' ~/Library/Logs/Stats/stats.log | sort | uniq -c | sort -rn | head
-grep 'health' ~/Library/Logs/Stats/stats.log | tail -20          # memory trend
-/usr/bin/log show --last 1d --predicate 'subsystem == "eu.exelban.Stats"' --style compact
+grep ' ERR ' ~/Library/Logs/mac-stats/stats.log | sort | uniq -c | sort -rn | head
+grep 'health' ~/Library/Logs/mac-stats/stats.log | tail -20          # memory trend
+/usr/bin/log show --last 1d --predicate 'subsystem == "com.ronjoncapul.macstats"' --style compact
 ```
 
-Launch with `--debug` (or `defaults write eu.exelban.Stats debug_logging -bool true`) to also get reader setup and interval lines.
+Launch with `--debug` (or `defaults write com.ronjoncapul.macstats debug_logging -bool true`) to also get reader setup and interval lines.
 
 ## Soak test
 
-`Scripts/soak.sh build/Stats.app 12` runs the app for 12 hours, samples memory, CPU time, file descriptors, child processes and Mach ports every five minutes, runs `leaks` at the end, and writes a pass/fail summary. The acceptance bar is under 5 MB of memory drift, zero child processes, and zero error lines on stdout.
+`Scripts/soak.sh build/mac-stats.app 12` runs the app for 12 hours, samples memory, CPU time, file descriptors, child processes and Mach ports every five minutes, runs `leaks` at the end, and writes a pass/fail summary. The acceptance bar is under 5 MB of memory drift, zero child processes, and zero error lines on stdout.
+
+## Installer
+
+`Scripts/package.sh` builds `build/mac-stats-<version>.dmg` (drag to Applications) and `build/mac-stats-<version>.pkg` (installs to /Applications and launches the app). Both are unsigned apart from the ad-hoc signature, so on another Mac Gatekeeper will call the app "from an unidentified developer": right-click → Open once, or run `xattr -dr com.apple.quarantine /Applications/mac-stats.app`. The pkg's postinstall step already does the latter. A Developer ID certificate would remove that friction but needs a paid Apple developer account.
+
+On first launch the app imports the settings of an installed upstream Stats, if any, so widget choices carry over.
 
 ## Layout
 
 - `Kit/` shared framework: Store, Reader, Module, menu bar widgets, popup and settings windows, charts, SMC client.
 - `Modules/CPU`, `Modules/RAM`, `Modules/Sensors`, `Modules/Net` one framework each.
-- `Stats/` the app shell: settings window, dashboard, combined-modules view.
+- `Stats/` the app shell (target name `mac-stats`): settings window, dashboard, combined-modules view.
 - `SMC/` the `smc` command-line tool for listing sensor keys (`smc list -t`).
 - `Tests/` unit tests.
 

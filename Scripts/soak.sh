@@ -1,7 +1,7 @@
 #!/bin/zsh
 # Soak test: run the built app for N hours and sample its resource usage.
 #
-# usage: Scripts/soak.sh <path/to/Stats.app> [hours=12] [interval_sec=300]
+# usage: Scripts/soak.sh <path/to/mac-stats.app> [hours=12] [interval_sec=300]
 #
 # Writes to ./soak-<timestamp>/:
 #   samples.csv   one row per interval: rss, vsz, cpu time, threads, fds, children, mach ports
@@ -13,10 +13,10 @@
 # zero child processes ever observed, zero lines matching /error/i in stdout.log.
 
 set -u
-app=${1:?path to Stats.app}
+app=${1:?path to mac-stats.app}
 hours=${2:-12}
 interval=${3:-300}
-bin="$app/Contents/MacOS/Stats"
+bin="$app/Contents/MacOS/mac-stats"
 [[ -x "$bin" ]] || { echo "not executable: $bin"; exit 1; }
 
 out="soak-$(date +%Y%m%d-%H%M%S)"
@@ -60,7 +60,7 @@ fi
   echo "max child processes observed: $maxkids"
   errs=$(grep -ci "error" "$log" || true)
   echo "stdout lines: $(wc -l < "$log")  error lines: $errs"
-  applog="$HOME/Library/Logs/Stats/stats.log"
+  applog="$HOME/Library/Logs/mac-stats/stats.log"
   if [[ -f "$applog" ]]; then
     since=$(grep -n '^==== ' "$applog" | tail -1 | cut -d: -f1)
     tail -n +"${since:-1}" "$applog" > "$out/stats.log"

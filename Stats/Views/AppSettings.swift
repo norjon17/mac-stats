@@ -179,24 +179,27 @@ class ApplicationSettings: NSStackView {
     
     private func informationView() -> NSView {
         let view = NSStackView()
-        view.heightAnchor.constraint(equalToConstant: 220).isActive = true
+        view.heightAnchor.constraint(equalToConstant: 280).isActive = true
         view.orientation = .vertical
         view.distribution = .fill
         view.alignment = .centerY
         view.spacing = 0
         
         let container: NSGridView = NSGridView()
-        container.heightAnchor.constraint(equalToConstant: 180).isActive = true
+        container.heightAnchor.constraint(equalToConstant: 240).isActive = true
         container.rowSpacing = 0
         container.yPlacement = .center
         container.xPlacement = .center
         
-        let iconView: NSImageView = NSImageView(image: NSImage(named: NSImage.Name("Stats"))!)
+        let iconView: NSImageView = NSImageView(image: NSApp.applicationIconImage)
+        iconView.imageScaling = .scaleProportionallyUpOrDown
+        iconView.widthAnchor.constraint(equalToConstant: 96).isActive = true
+        iconView.heightAnchor.constraint(equalToConstant: 96).isActive = true
         
         let statsName: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 22))
         statsName.alignment = .center
         statsName.font = NSFont.systemFont(ofSize: 20, weight: .regular)
-        statsName.stringValue = "Stats"
+        statsName.stringValue = "mac-stats"
         statsName.isSelectable = true
         
         let versionNumber = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as! String
@@ -209,6 +212,18 @@ class ApplicationSettings: NSStackView {
         statsVersion.isSelectable = true
         statsVersion.toolTip = "\(localizedString("Build number")) \(buildNumber)"
         
+        let credits: NSTextField = TextView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 16))
+        credits.alignment = .center
+        credits.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        credits.textColor = .secondaryLabelColor
+        credits.stringValue = "Vibe coded with Claude by rcapul"
+        
+        let inspired = NSButton(title: "Inspired by Stats (exelban/stats on GitHub)", target: self, action: #selector(self.openUpstream))
+        inspired.bezelStyle = .inline
+        inspired.isBordered = false
+        inspired.contentTintColor = .linkColor
+        inspired.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        
         let logButton = NSButton(title: "Open log folder", target: self, action: #selector(self.openLogFolder))
         logButton.bezelStyle = .rounded
         logButton.controlSize = .small
@@ -217,11 +232,15 @@ class ApplicationSettings: NSStackView {
         container.addRow(with: [iconView])
         container.addRow(with: [statsName])
         container.addRow(with: [statsVersion])
+        container.addRow(with: [credits])
+        container.addRow(with: [inspired])
         container.addRow(with: [logButton])
         
         container.row(at: 1).height = 22
         container.row(at: 2).height = 20
-        container.row(at: 3).height = 28
+        container.row(at: 3).height = 18
+        container.row(at: 4).height = 20
+        container.row(at: 5).height = 28
         
         view.addArrangedSubview(container)
         
@@ -349,6 +368,10 @@ class ApplicationSettings: NSStackView {
                 Store.shared.export(to: url)
             }
         }
+    }
+    
+    @objc private func openUpstream() {
+        NSWorkspace.shared.open(URL(string: "https://github.com/exelban/stats")!)
     }
     
     @objc private func openLogFolder() {

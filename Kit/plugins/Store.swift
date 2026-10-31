@@ -95,6 +95,22 @@ public class Store {
         self.setValue(value, for: key)
     }
     
+    /// One-time import of another app's UserDefaults domain (the upstream Stats settings)
+    /// when this app has no settings of its own yet. Call before anything touches Store.shared.
+    public static func migrateDefaults(from oldDomain: String) {
+        guard let newDomain = Bundle.main.bundleIdentifier, newDomain != oldDomain else { return }
+        let defaults = UserDefaults.standard
+        if let existing = defaults.persistentDomain(forName: newDomain), existing.keys.contains(where: { $0.hasSuffix("_state") }) {
+            return
+        }
+        guard let old = defaults.persistentDomain(forName: oldDomain), !old.isEmpty else { return }
+        var copy = old
+        for key in ["remote_id", "access_token", "refresh_token", "telemetry_id", "remote_tokens_migrated_to_keychain"] {
+            copy.removeValue(forKey: key)
+        }
+        defaults.setPersistentDomain(copy, forName: newDomain)
+    }
+    
     public func reset() {
         self.cacheQueue.async(flags: .barrier) {
             self.cache.removeAll()

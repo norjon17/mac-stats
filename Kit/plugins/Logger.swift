@@ -7,7 +7,7 @@
 //
 //  Trimmed fork: every line goes to a rotating file in ~/Library/Logs/Stats/
 //  and to stderr; info and error lines are mirrored to the unified log
-//  (subsystem eu.exelban.Stats) so Console.app shows them too.
+//  (subsystem com.ronjoncapul.macstats) so Console.app shows them too.
 //
 //  Levels:
 //    debug  written only when launched with --debug or Store key debug_logging = true
@@ -46,7 +46,7 @@ public class NextLog {
     /// Directory that holds stats.log and its rotated copies.
     public static let logDirectoryURL: URL = {
         let base = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first ?? URL(fileURLWithPath: NSHomeDirectory() + "/Library")
-        return base.appendingPathComponent("Logs", isDirectory: true).appendingPathComponent("Stats", isDirectory: true)
+        return base.appendingPathComponent("Logs", isDirectory: true).appendingPathComponent("mac-stats", isDirectory: true)
     }()
     public static let logFileURL: URL = logDirectoryURL.appendingPathComponent("stats.log")
 
@@ -211,7 +211,7 @@ extension NextLog {
     }
 
     /// Mirrors info and error lines into the unified log so they show up in
-    /// Console.app and `log show --predicate 'subsystem == "eu.exelban.Stats"'`.
+    /// Console.app and `log show --predicate 'subsystem == "com.ronjoncapul.macstats"'`.
     private final class UnifiedLogWriter: Writer {
         private let lock = NSLock()
         private var loggers: [String: os.Logger] = [:]
@@ -230,7 +230,7 @@ extension NextLog {
             self.lock.lock()
             defer { self.lock.unlock() }
             if let l = self.loggers[category] { return l }
-            let l = os.Logger(subsystem: "eu.exelban.Stats", category: category)
+            let l = os.Logger(subsystem: "com.ronjoncapul.macstats", category: category)
             self.loggers[category] = l
             return l
         }

@@ -19,7 +19,7 @@ public extension NSToolbarItem.Identifier {
 
 class SettingsWindow: NSWindow, NSWindowDelegate, NSToolbarDelegate {
     private static let size: CGSize = CGSize(width: 720, height: 480)
-    private static let frameAutosaveName = "eu.exelban.Stats.Settings.WindowFrame"
+    private static let frameAutosaveName = "com.ronjoncapul.macstats.Settings.WindowFrame"
     
     internal var onClose: (() -> Void)?
     
@@ -65,7 +65,7 @@ class SettingsWindow: NSWindow, NSWindowDelegate, NSToolbarDelegate {
         
         contentItem.minimumThickness = 540
         
-        let newToolbar = NSToolbar(identifier: "eu.exelban.Stats.Settings.Toolbar")
+        let newToolbar = NSToolbar(identifier: "com.ronjoncapul.macstats.Settings.Toolbar")
         newToolbar.allowsUserCustomization = false
         newToolbar.autosavesConfiguration = true
         newToolbar.displayMode = .default
@@ -334,8 +334,7 @@ private class SidebarView: NSStackView {
     
     private var dashboardIcon: NSImage { NSImage(systemSymbolName: "circle.grid.3x3.fill", accessibilityDescription: nil)! }
     private var settingsIcon: NSImage { iconFromSymbol(name: "gear", scale: .large) }
-    private var bugIcon: NSImage { iconFromSymbol(name: "ladybug", scale: .large) }
-    private var supportIcon: NSImage { iconFromSymbol(name: "heart.fill", scale: .large) }
+    private var githubIcon: NSImage { iconFromSymbol(name: "link", scale: .large) }
     private var pauseIcon: NSImage { iconFromSymbol(name: "pause.fill", scale: .large) }
     private var resumeIcon: NSImage { iconFromSymbol(name: "play.fill", scale: .large) }
     private var closeIcon: NSImage { iconFromSymbol(name: "power", scale: .large) }
@@ -367,8 +366,7 @@ private class SidebarView: NSStackView {
         self.pauseButton = pauseButton
         
         additionalButtons.addArrangedSubview(self.makeButton(title: localizedString("Settings"), image: self.settingsIcon, action: #selector(openSettings)))
-        additionalButtons.addArrangedSubview(self.makeButton(title: "Upstream project (exelban/stats)", image: self.supportIcon, action: #selector(openUpstream)))
-        additionalButtons.addArrangedSubview(self.makeButton(title: localizedString("Report a bug"), image: self.bugIcon, action: #selector(reportBug)))
+        additionalButtons.addArrangedSubview(self.makeButton(title: "Stats on GitHub (the project this is based on)", image: self.githubIcon, action: #selector(openUpstream)))
         additionalButtons.addArrangedSubview(pauseButton)
         additionalButtons.addArrangedSubview(self.makeButton(title: localizedString("Close application"), image: self.closeIcon, action: #selector(closeApp)))
         
@@ -435,10 +433,6 @@ private class SidebarView: NSStackView {
     
     @objc private func openSettings() {
         NotificationCenter.default.post(name: .openModuleSettings, object: nil, userInfo: ["module": "Settings"])
-    }
-    
-    @objc private func reportBug() {
-        NSWorkspace.shared.open(URL(string: "https://github.com/exelban/stats/issues/new?template=bug_report.yml")!)
     }
     
     @objc private func openUpstream() {

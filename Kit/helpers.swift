@@ -1845,3 +1845,27 @@ public func process(path: String, arguments: [String], environment: [String: Str
     
     return output
 }
+
+/// Renders the Markdown subset CHANGELOG.md uses ("#"/"##" headings, "- " bullets, plain lines) as HTML for HelpHUD.
+public func changelogHTML(_ markdown: String) -> String {
+    func escape(_ s: String) -> String {
+        s.replacingOccurrences(of: "&", with: "&amp;").replacingOccurrences(of: "<", with: "&lt;").replacingOccurrences(of: ">", with: "&gt;")
+    }
+    var html = "", inList = false
+    for raw in markdown.components(separatedBy: .newlines) {
+        let line = raw.trimmingCharacters(in: .whitespaces)
+        if inList && !line.hasPrefix("- ") { html += "</ul>"; inList = false }
+        if line.hasPrefix("## ") {
+            html += "<h3>\(escape(String(line.dropFirst(3))))</h3>"
+        } else if line.hasPrefix("# ") {
+            continue // the panel title already names the document
+        } else if line.hasPrefix("- ") {
+            if !inList { html += "<ul>"; inList = true }
+            html += "<li>\(escape(String(line.dropFirst(2))))</li>"
+        } else if !line.isEmpty {
+            html += "<p>\(escape(line))</p>"
+        }
+    }
+    if inList { html += "</ul>" }
+    return html
+}

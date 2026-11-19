@@ -14,6 +14,8 @@ import Kit
 import ServiceManagement
 
 class ApplicationSettings: NSStackView {
+    private var whatsNewPanel: HelpHUD? = nil
+    
     private var temperatureUnitsValue: String {
         get { Store.shared.string(key: "temperature_units", defaultValue: "system") }
         set { Store.shared.set(key: "temperature_units", value: newValue) }
@@ -234,7 +236,13 @@ class ApplicationSettings: NSStackView {
         container.addRow(with: [statsVersion])
         container.addRow(with: [credits])
         container.addRow(with: [inspired])
-        container.addRow(with: [logButton])
+        let whatsNewButton = NSButton(title: "What's new", target: self, action: #selector(self.openWhatsNew))
+        whatsNewButton.bezelStyle = .rounded
+        whatsNewButton.controlSize = .small
+        let buttons = NSStackView(views: [whatsNewButton, logButton])
+        buttons.orientation = .horizontal
+        buttons.spacing = 8
+        container.addRow(with: [buttons])
         
         container.row(at: 1).height = 22
         container.row(at: 2).height = 20
@@ -372,6 +380,17 @@ class ApplicationSettings: NSStackView {
     
     @objc private func openUpstream() {
         NSWorkspace.shared.open(URL(string: "https://github.com/exelban/stats")!)
+    }
+    
+    @objc private func openWhatsNew() {
+        if self.whatsNewPanel == nil {
+            let markdown = Bundle.main.url(forResource: "CHANGELOG", withExtension: "md")
+                .flatMap { try? String(contentsOf: $0, encoding: .utf8) } ?? "Changelog not found in the app bundle."
+            let panel = HelpHUD(changelogHTML(markdown), size: CGSize(width: 460, height: 420))
+            panel.title = "What's new"
+            self.whatsNewPanel = panel
+        }
+        self.whatsNewPanel?.show()
     }
     
     @objc private func openLogFolder() {

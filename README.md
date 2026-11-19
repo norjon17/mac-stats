@@ -46,6 +46,10 @@ The "Start at login" switch in Settings uses the system login-item service. Beca
 
 Some transparent-proxy system extensions (Kaspersky's, for one) leave the interface inbound counters at zero: `netstat -I en0 -b` shows 0 input packets while output counts normally, and every menu bar monitor that reads those counters shows a download speed of 0. This fork detects that state and switches the download figure to the kernel's route statistics, read through the private NetworkStatistics framework (the same source `nettop -m route` uses). It is loaded dynamically, so if a macOS update removes it the app falls back to 0 instead of failing. Settings → Network → "Download counter" lets you force either source. Upload always comes from the interface counters.
 
+## Changelog
+
+Release notes live in [CHANGELOG.md](CHANGELOG.md). The file is bundled into the app, and Settings → Information → "What's new" shows it. Add an entry there with every version bump.
+
 ## Logs
 
 The app writes `~/Library/Logs/mac-stats/stats.log` (rotated at 5 MB, three old copies kept). Settings → Information has an "Open log folder" button. Every line has a timestamp, source file and line, level (`INF`/`ERR`/`DBG`) and module. Info and error lines are also mirrored to the unified log under subsystem `com.ronjoncapul.macstats`, so Console.app shows them.

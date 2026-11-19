@@ -62,4 +62,9 @@ class KitTests: XCTestCase {
         XCTAssertEqual(Units(bytes: 123_450_000).getReadableSpeed(unit: "MB"), "123.45 MB/s")
         XCTAssertEqual(Units(bytes: 1_000_000_000).getReadableSpeed(unit: "KB"), "1000000.00 KB/s")
     }
+    
+    func testChangelogHTML() throws {
+        let md = "# Changelog\n\n## 1.0.1 (date)\n\n- one & <two>\n- three\n\nplain\n"
+        XCTAssertEqual(changelogHTML(md), "<h3>1.0.1 (date)</h3><ul><li>one &amp; &lt;two&gt;</li><li>three</li></ul><p>plain</p>")
+    }
 }

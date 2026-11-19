@@ -165,7 +165,7 @@ internal class Preview: PreviewWrapper {
         return view
     }
 
-    public func usageCallback(_ value: Network_Usage) {
+    nonisolated public func usageCallback(_ value: Network_Usage) {
         DispatchQueue.main.async(execute: {
             if (self.window?.isVisible ?? false) || !self.initialized {
                 let upload = Units(bytes: value.bandwidth.upload).getReadableTuple(base: self.base, unit: self.speedUnit)

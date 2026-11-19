@@ -254,9 +254,11 @@ internal class Popup: PopupWrapper {
         return view
     }
     
-    public func loadCallback(_ value: CPU_Load) {
-        self.apply(value, to: self.loadCache, render: self.renderLoad)
-        self.lineChart?.addValue(value.totalUsage)
+    nonisolated public func loadCallback(_ value: CPU_Load) {
+        DispatchQueue.main.async(execute: {
+            self.loadCache.apply(value, visible: self.window?.isVisible ?? false, render: self.renderLoad)
+            self.lineChart?.addValue(value.totalUsage)
+        })
     }
     
     private func renderLoad(_ value: CPU_Load) {
@@ -301,9 +303,11 @@ internal class Popup: PopupWrapper {
         self.lineChart?.display()
     }
     
-    public func temperatureCallback(_ value: Double?) {
+    nonisolated public func temperatureCallback(_ value: Double?) {
         guard let value else { return }
-        self.apply(value, to: self.temperatureCache, render: self.renderTemperature)
+        DispatchQueue.main.async(execute: {
+            self.temperatureCache.apply(value, visible: self.window?.isVisible ?? false, render: self.renderTemperature)
+        })
     }
     
     private func renderTemperature(_ value: Double) {

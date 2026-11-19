@@ -12,7 +12,7 @@
 import Cocoa
 import Kit
 
-public struct RAM_Usage: Codable {
+public struct RAM_Usage: Codable, Sendable {
     var total: Double
     var used: Double
     var free: Double
@@ -36,13 +36,13 @@ public struct RAM_Usage: Codable {
     }
 }
 
-public struct Swap: Codable {
+public struct Swap: Codable, Sendable {
     var total: Double
     var used: Double
     var free: Double
 }
 
-public struct Pressure: Codable {
+public struct Pressure: Codable, Sendable {
     let level: Int
     let value: RAMPressure
 }
@@ -88,7 +88,7 @@ public class RAM: Module {
         Store.shared.string(key: "\(self.name)_textWidgetValue", defaultValue: "$mem.used/$mem.total ($pressure.value)")
     }
     
-    public init() {
+    @MainActor public init() {
         self.settingsView = Settings(.RAM)
         self.popupView = Popup(.RAM)
         self.portalView = Portal(.RAM, height: 80)
@@ -112,11 +112,16 @@ public class RAM: Module {
             self?.usageReader?.setInterval(value)
         }
         
+        self.initReaders()
+        
+        self.setReaders([self.usageReader])
+    }
+    
+    // Not in the @MainActor init: closures created there would inherit main-actor isolation and trap when readers call them off main.
+    private func initReaders() {
         self.usageReader = UsageReader(.RAM) { [weak self] value in
             self?.loadCallback(value)
         }
-        
-        self.setReaders([self.usageReader])
     }
     
     private func loadCallback(_ raw: RAM_Usage?) {
@@ -124,7 +129,8 @@ public class RAM: Module {
         
         self.popupView.loadCallback(value)
         self.portalView.callback(value)
-        self.notificationsView.loadCallback(value)
+        // Hop to main: threshold state is edited by the UI and NotificationsWrapper's bookkeeping is not locked.
+        DispatchQueue.main.async { [notificationsView = self.notificationsView] in notificationsView.loadCallback(value) }
         self.previewView.loadCallback(value)
         
         let total: Double = value.total == 0 ? 1 : value.total

@@ -45,13 +45,14 @@ internal class UsageReader: Reader<RAM_Usage> {
         }
         
         if result == KERN_SUCCESS {
-            let active = Double(stats.active_count) * Double(vm_page_size)
-            let speculative = Double(stats.speculative_count) * Double(vm_page_size)
-            let inactive = Double(stats.inactive_count) * Double(vm_page_size)
-            let wired = Double(stats.wire_count) * Double(vm_page_size)
-            let compressed = Double(stats.compressor_page_count) * Double(vm_page_size)
-            let purgeable = Double(stats.purgeable_count) * Double(vm_page_size)
-            let external = Double(stats.external_page_count) * Double(vm_page_size)
+            let pageSize = Double(getpagesize()) // same value as the vm_page_size global, which Swift 6 rejects as shared mutable state
+            let active = Double(stats.active_count) * pageSize
+            let speculative = Double(stats.speculative_count) * pageSize
+            let inactive = Double(stats.inactive_count) * pageSize
+            let wired = Double(stats.wire_count) * pageSize
+            let compressed = Double(stats.compressor_page_count) * pageSize
+            let purgeable = Double(stats.purgeable_count) * pageSize
+            let external = Double(stats.external_page_count) * pageSize
             let swapins = Int64(stats.swapins)
             let swapouts = Int64(stats.swapouts)
             

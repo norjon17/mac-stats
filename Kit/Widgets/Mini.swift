@@ -18,10 +18,11 @@ public class Mini: WidgetWrapper {
     
     private var colors: [SColor] = SColor.allCases
     
-    private var _value: Double = 0
-    private var _pressureLevel: RAMPressure = .normal
-    private var _colorZones: colorZones = (0.6, 0.8)
-    private var _suffix: String = "%"
+    // Setters run on reader threads; every access to the _-prefixed/guarded vars below goes through self.queue.
+    nonisolated(unsafe) private var _value: Double = 0
+    nonisolated(unsafe) private var _pressureLevel: RAMPressure = .normal
+    nonisolated(unsafe) private var _colorZones: colorZones = (0.6, 0.8)
+    nonisolated(unsafe) private var _suffix: String = "%"
     
     private var defaultLabel: String
     private var _label: String
@@ -147,7 +148,7 @@ public class Mini: WidgetWrapper {
         self.setWidth(width)
     }
     
-    public func setValue(_ newValue: Double) {
+    nonisolated public func setValue(_ newValue: Double) {
         let updated = self.queue.sync { () -> Bool in
             guard self._value != newValue else { return false }
             self._value = newValue
@@ -159,7 +160,7 @@ public class Mini: WidgetWrapper {
         })
     }
     
-    public func setPressure(_ newPressureLevel: RAMPressure) {
+    nonisolated public func setPressure(_ newPressureLevel: RAMPressure) {
         let updated = self.queue.sync { () -> Bool in
             guard self._pressureLevel != newPressureLevel else { return false }
             self._pressureLevel = newPressureLevel
@@ -187,7 +188,7 @@ public class Mini: WidgetWrapper {
         })
     }
     
-    public func setColorZones(_ newColorZones: colorZones) {
+    nonisolated public func setColorZones(_ newColorZones: colorZones) {
         let updated = self.queue.sync { () -> Bool in
             guard self._colorZones != newColorZones else { return false }
             self._colorZones = newColorZones
@@ -199,7 +200,7 @@ public class Mini: WidgetWrapper {
         })
     }
     
-    public func setSuffix(_ newSuffix: String) {
+    nonisolated public func setSuffix(_ newSuffix: String) {
         let updated = self.queue.sync { () -> Bool in
             guard self._suffix != newSuffix else { return false }
             self._suffix = newSuffix

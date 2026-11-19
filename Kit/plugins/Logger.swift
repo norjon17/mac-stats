@@ -36,11 +36,11 @@ public enum LogOption: Int {
     }
 }
 
-public protocol Writer: AnyObject {
+public protocol Writer: AnyObject, Sendable {
     func write(_ string: String, level: LogLevel, category: String?)
 }
 
-public class NextLog {
+public final class NextLog: Sendable {
     public static let shared = NextLog()
 
     /// Directory that holds stats.log and its rotated copies.
@@ -56,14 +56,18 @@ public class NextLog {
         UnifiedLogWriter()
     ])
 
-    private var category: String? = nil
+    private let category: String?
 
-    public init() {}
+    public init() {
+        self.category = nil
+    }
+
+    private init(category: String?) {
+        self.category = category
+    }
 
     public func copy(category: String? = nil) -> NextLog {
-        let logger = NextLog()
-        logger.category = category
-        return logger
+        return NextLog(category: category)
     }
 
     public func log(level: LogLevel, options: [LogOption] = LogOption.new(), message: String, file: String = #file, line: UInt = #line) {
@@ -142,7 +146,8 @@ extension NextLog {
     /// window are counted and reported when the next line is released.
     fileprivate static let rateLimiter = RateLimiter(window: 60)
 
-    fileprivate final class RateLimiter {
+    // @unchecked: sites is only touched while holding lock.
+    fileprivate final class RateLimiter: @unchecked Sendable {
         private struct Site: Hashable {
             let file: String
             let line: UInt
@@ -212,7 +217,8 @@ extension NextLog {
 
     /// Mirrors info and error lines into the unified log so they show up in
     /// Console.app and `log show --predicate 'subsystem == "com.ronjoncapul.macstats"'`.
-    private final class UnifiedLogWriter: Writer {
+    // @unchecked: loggers is only touched while holding lock.
+    private final class UnifiedLogWriter: Writer, @unchecked Sendable {
         private let lock = NSLock()
         private var loggers: [String: os.Logger] = [:]
 
@@ -238,7 +244,8 @@ extension NextLog {
 
     /// Appends to `url`, rotating to url.1 ... url.<keep> when the file passes `maxBytes`.
     /// All I/O happens on a serial utility queue so reader threads never block on disk.
-    private final class RotatingFileWriter: Writer {
+    // @unchecked: handle and size are only touched on the serial self.queue (and in deinit).
+    private final class RotatingFileWriter: Writer, @unchecked Sendable {
         private let url: URL
         private let maxBytes: UInt64
         private let keep: Int

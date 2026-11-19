@@ -12,7 +12,7 @@
 import Cocoa
 import Kit
 
-var textWidgetHelp = """
+let textWidgetHelp = """
 <h2>Description</h2>
 You can use a combination of any of the variables.
 <h3>Examples:</h3>
@@ -42,7 +42,7 @@ You can use a combination of any of the variables.
 </ul>
 """
 
-internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
+internal class Settings: NSStackView, @MainActor Settings_v, NSTextFieldDelegate {
     private var updateIntervalValue: Int = 1
     private var splitValueState: Bool = false
     private var notificationLevel: String = "Disabled"

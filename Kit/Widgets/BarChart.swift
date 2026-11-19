@@ -15,12 +15,18 @@ public class BarChart: WidgetWrapper {
     private var labelState: Bool = false
     private var boxState: Bool = true
     private var frameState: Bool = false
-    public var colorState: SColor = .systemAccent
+    // Read by the CPU reader thread, written on main: guarded by self.queue.
+    nonisolated(unsafe) private var _colorState: SColor = .systemAccent
+    nonisolated public var colorState: SColor {
+        get { self.queue.sync { self._colorState } }
+        set { self.queue.sync { self._colorState = newValue } }
+    }
     private var colors: [SColor] = SColor.allCases
     
-    private var _value: [[ColorValue]] = [[]]
-    private var _pressureLevel: RAMPressure = .normal
-    private var _colorZones: colorZones = (0.6, 0.8)
+    // Setters run on reader threads; every access to the _-prefixed/guarded vars below goes through self.queue.
+    nonisolated(unsafe) private var _value: [[ColorValue]] = [[]]
+    nonisolated(unsafe) private var _pressureLevel: RAMPressure = .normal
+    nonisolated(unsafe) private var _colorZones: colorZones = (0.6, 0.8)
     
     private var boxSettingsView: NSSwitch? = nil
     private var frameSettingsView: NSSwitch? = nil
@@ -56,7 +62,7 @@ public class BarChart: WidgetWrapper {
             }
             if let color = configuration["Color"] as? String {
                 if let defaultColor = self.colors.first(where: { $0.key == color }) {
-                    self.colorState = defaultColor
+                    self._colorState = defaultColor
                 }
             }
         }
@@ -222,7 +228,7 @@ public class BarChart: WidgetWrapper {
         self.setWidth(width)
     }
     
-    public func setValue(_ newValue: [[ColorValue]]) {
+    nonisolated public func setValue(_ newValue: [[ColorValue]]) {
         let updated = self.queue.sync { () -> Bool in
             let tolerance: CGFloat = 0.01
             let isDifferent = self._value.count != newValue.count || zip(self._value, newValue).contains { row1, row2 in
@@ -239,7 +245,7 @@ public class BarChart: WidgetWrapper {
         }
     }
     
-    public func setPressure(_ newPressureLevel: RAMPressure) {
+    nonisolated public func setPressure(_ newPressureLevel: RAMPressure) {
         let updated = self.queue.sync { () -> Bool in
             guard self._pressureLevel != newPressureLevel else { return false }
             self._pressureLevel = newPressureLevel
@@ -250,7 +256,7 @@ public class BarChart: WidgetWrapper {
         }
     }
     
-    public func setColorZones(_ newColorZones: colorZones) {
+    nonisolated public func setColorZones(_ newColorZones: colorZones) {
         let updated = self.queue.sync { () -> Bool in
             guard self._colorZones != newColorZones else { return false }
             self._colorZones = newColorZones

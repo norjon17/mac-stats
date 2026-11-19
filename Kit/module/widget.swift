@@ -11,7 +11,7 @@
 
 import Cocoa
 
-public enum widget_t: String {
+public enum widget_t: String, Sendable {
     case unknown = ""
     case mini = "mini"
     case lineChart = "line_chart"
@@ -27,7 +27,7 @@ public enum widget_t: String {
     case text = "text"
     case icon = "icon"
     
-    public func new(module: String, config: NSDictionary, defaultWidget: widget_t, icon: NSImage? = nil) -> SWidget? {
+    @MainActor public func new(module: String, config: NSDictionary, defaultWidget: widget_t, icon: NSImage? = nil) -> SWidget? {
         guard let widgetConfig: NSDictionary = config[self.rawValue] as? NSDictionary else { return nil }
         
         var image: NSImage? = nil
@@ -149,7 +149,7 @@ open class WidgetWrapper: NSView, widget_p {
     public var widthHandler: (() -> Void)? = nil
     public var onClick: (() -> Void)? = nil
     public var shadowSize: CGSize
-    internal var queue: DispatchQueue
+    nonisolated internal let queue: DispatchQueue
     
     public init(_ type: widget_t, title: String, frame: NSRect) {
         self.type = type
@@ -201,7 +201,7 @@ open class WidgetWrapper: NSView, widget_p {
         return width
     }
     
-    public func redraw() {
+    nonisolated public func redraw() {
         DispatchQueue.main.async { [weak self] in
             self?.needsDisplay = true
         }
@@ -218,7 +218,9 @@ open class WidgetWrapper: NSView, widget_p {
     }
 }
 
-public class SWidget {
+// @unchecked: menuBarItem is only touched on the main queue, callbacks are set once during module setup,
+// everything else is immutable or backed by Store.
+public final class SWidget: @unchecked Sendable {
     public let type: widget_t
     public let defaultWidget: widget_t
     public let module: String
@@ -262,7 +264,7 @@ public class SWidget {
     private var menuBarItem: NSStatusItem? = nil
     private var originX: CGFloat
     
-    public init(_ type: widget_t, defaultWidget: widget_t, module: String, item: widget_p, image: NSImage) {
+    @MainActor public init(_ type: widget_t, defaultWidget: widget_t, module: String, item: widget_p, image: NSImage) {
         self.type = type
         self.module = module
         self.item = item
@@ -351,7 +353,7 @@ public class SWidget {
         }
     }
     
-    @objc private func togglePopup() {
+    @MainActor @objc private func togglePopup() {
         if let item = self.menuBarItem, let window = item.button?.window {
             NotificationCenter.default.post(name: .togglePopup, object: nil, userInfo: [
                 "module": self.module,
@@ -363,7 +365,9 @@ public class SWidget {
     }
 }
 
-public class MenuBar {
+// @unchecked: UI state (menuBarItem, view, oneView) is only touched on the main thread, widgets/callback
+// are set during setup, _active is guarded by queue.
+public final class MenuBar: @unchecked Sendable {
     public var callback: (() -> Void)? = nil
     public var widgets: [SWidget] = []
     
@@ -375,7 +379,7 @@ public class MenuBar {
         Store.shared.bool(key: "CombinedModules", defaultValue: false)
     }
     
-    public var view: MenuBarView = MenuBarView()
+    public var view: MenuBarView
     public var oneView: Bool = false
     public var activeWidgets: [SWidget] {
         self.widgets.filter({ $0.isActive })
@@ -398,9 +402,14 @@ public class MenuBar {
     
     init(moduleName: String) {
         self.moduleName = moduleName
+        // Created from Module.init, which runs on the main thread.
+        self.view = MainActor.assumeIsolated {
+            let view = MenuBarView()
+            view.identifier = NSUserInterfaceItemIdentifier(rawValue: moduleName)
+            return view
+        }
         self.queue = DispatchQueue(label: "eu.exelban.Stats.MenuBar.\(moduleName)")
         self.oneView = Store.shared.bool(key: "\(self.moduleName)_oneView", defaultValue: self.oneView)
-        self.view.identifier = NSUserInterfaceItemIdentifier(rawValue: moduleName)
         
         if self.combinedModules {
             self.oneView = true
@@ -442,7 +451,8 @@ public class MenuBar {
             }
         }
         widget.sizeCallback = { [weak self] in
-            self?.recalculateWidth()
+            // Called from the widget's widthHandler, which always runs on the main queue.
+            MainActor.assumeIsolated { self?.recalculateWidth() }
         }
         self.widgets.append(widget)
     }
@@ -492,7 +502,7 @@ public class MenuBar {
         })
     }
     
-    private func recalculateWidth() {
+    @MainActor private func recalculateWidth() {
         guard self.oneView, self.active else { return }
         
         let w = self.activeWidgets.isEmpty ? 0 : self.activeWidgets.map({ $0.item.frame.width }).reduce(0, +) +
@@ -506,7 +516,7 @@ public class MenuBar {
         self.callback?()
     }
     
-    @objc private func togglePopup() {
+    @MainActor @objc private func togglePopup() {
         if let item = self.menuBarItem, let window = item.button?.window {
             NotificationCenter.default.post(name: .togglePopup, object: nil, userInfo: [
                 "module": self.moduleName,
@@ -544,7 +554,7 @@ public class MenuBar {
         }
     }
     
-    @objc private func listenForWidgetRearrange(_ notification: Notification) {
+    @MainActor @objc private func listenForWidgetRearrange(_ notification: Notification) {
         guard let name = notification.userInfo?["module"] as? String, name == self.moduleName else {
             return
         }

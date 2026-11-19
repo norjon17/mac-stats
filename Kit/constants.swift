@@ -11,7 +11,7 @@
 
 import Cocoa
 
-public struct Popup_c_s {
+public struct Popup_c_s: Sendable {
     public let width: CGFloat = 264
     public let height: CGFloat = 300
     public let margins: CGFloat = 8
@@ -23,15 +23,15 @@ public struct Popup_c_s {
     public let processHeight: CGFloat = 22
 }
 
-public struct Settings_c_s {
+public struct Settings_c_s: Sendable {
     public let width: CGFloat = 540
     public let height: CGFloat = 480
     public let margin: CGFloat = 10
 }
 
-public struct Widget_c_s {
+public struct Widget_c_s: Sendable {
     public let width: CGFloat = 32
-    public var height: CGFloat {
+    @MainActor public var height: CGFloat {
         get {
             let systemHeight = NSApplication.shared.mainMenu?.menuBarHeight
             return (systemHeight == 0 ? 22 : systemHeight) ?? 22

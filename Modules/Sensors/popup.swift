@@ -92,7 +92,7 @@ internal class Popup: PopupWrapper {
         self.recalculateHeight()
     }
 
-    internal func usageCallback(_ values: [Sensor_p]) {
+    nonisolated internal func usageCallback(_ values: [Sensor_p]) {
         DispatchQueue.main.async(execute: {
             let visible = self.window?.isVisible ?? false
             // Self-correcting: if appear/disappear was missed, the next tick still fixes the reader's view.

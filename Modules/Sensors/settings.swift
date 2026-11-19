@@ -12,7 +12,7 @@
 import Cocoa
 import Kit
 
-internal class Settings: NSStackView, Settings_v {
+internal class Settings: NSStackView, @MainActor Settings_v {
     private var updateIntervalValue: Int = 3
     private var widgets: [widget_t] = []
 

@@ -13,9 +13,10 @@ import Cocoa
 
 public class MemoryWidget: WidgetWrapper {
     private var orderReversedState: Bool = false
-    private var value: (String, String) = ("0", "0")
-    private var percentage: Double = 0
-    private var pressureLevel: RAMPressure = .normal
+    // Setters run on reader threads; every access to the _-prefixed/guarded vars below goes through self.queue.
+    nonisolated(unsafe) private var value: (String, String) = ("0", "0")
+    nonisolated(unsafe) private var percentage: Double = 0
+    nonisolated(unsafe) private var pressureLevel: RAMPressure = .normal
     private var symbolsState: Bool = true
     private var colorState: SColor = .monochrome
     
@@ -137,7 +138,7 @@ public class MemoryWidget: WidgetWrapper {
         self.setWidth(width + (Constants.Widget.margin.x*2))
     }
     
-    public func setValue(_ value: (String, String), usedPercentage: Double) {
+    nonisolated public func setValue(_ value: (String, String), usedPercentage: Double) {
         let updated = self.queue.sync { () -> Bool in
             guard self.value != value || self.percentage != usedPercentage else { return false }
             self.value = value
@@ -150,7 +151,7 @@ public class MemoryWidget: WidgetWrapper {
         })
     }
     
-    public func setPressure(_ newPressureLevel: RAMPressure) {
+    nonisolated public func setPressure(_ newPressureLevel: RAMPressure) {
         let updated = self.queue.sync { () -> Bool in
             guard self.pressureLevel != newPressureLevel else { return false }
             self.pressureLevel = newPressureLevel

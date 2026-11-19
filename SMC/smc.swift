@@ -157,9 +157,11 @@ extension Float {
     }
 }
 
-public class SMC {
+// @unchecked: conn is only written in init; keyInfoCache is guarded by keyInfoLock, _fanModeKeyIsLower by fanModeLock.
+public final class SMC: @unchecked Sendable {
     public static let shared = SMC()
     private var conn: io_connect_t = 0
+    private let fanModeLock = NSLock()
     private var _fanModeKeyIsLower: Bool?
     private let keyInfoLock = NSLock()
     private var keyInfoCache: [UInt32: SMCKeyData_t.keyInfo_t] = [:]
@@ -360,6 +362,8 @@ public class SMC {
     
     public func fanModeKey(_ id: Int) -> String {
         #if arch(arm64)
+        self.fanModeLock.lock()
+        defer { self.fanModeLock.unlock() }
         if _fanModeKeyIsLower == nil {
             var probe = SMCVal_t("F0md")
             _fanModeKeyIsLower = read(&probe) == kIOReturnSuccess && probe.dataSize > 0

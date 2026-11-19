@@ -100,7 +100,7 @@ public class Portal: PortalWrapper {
         return view
     }
     
-    internal func callback(_ value: CPU_Load) {
+    nonisolated internal func callback(_ value: CPU_Load) {
         DispatchQueue.main.async(execute: {
             if (self.window?.isVisible ?? false) || !self.initialized {
                 self.usageField?.stringValue = "\(Int(value.totalUsage.rounded(toPlaces: 2) * 100))%"

@@ -13,7 +13,7 @@ import Cocoa
 import Kit
 import SystemConfiguration
 
-var textWidgetHelp = """
+let textWidgetHelp = """
 <h2>Description</h2>
 You can use a combination of any of the variables. There is only one limitation: there must be a space between each variable.
 <h3>Examples:</h3>
@@ -45,7 +45,7 @@ internal let NetworkInboundSources: [KeyValue_t] = [
     KeyValue_t(key: "route", value: "Route statistics")
 ]
 
-internal class Settings: NSStackView, Settings_v, NSTextFieldDelegate {
+internal class Settings: NSStackView, @MainActor Settings_v, NSTextFieldDelegate {
     private var usageReset: String = AppUpdateInterval.never.rawValue
     private var VPNModeState: Bool = false
     private var widgetActivationThresholdState: Bool = false

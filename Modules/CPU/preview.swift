@@ -198,7 +198,7 @@ internal class Preview: PreviewWrapper {
         return view
     }
     
-    internal func loadCallback(_ value: CPU_Load) {
+    nonisolated internal func loadCallback(_ value: CPU_Load) {
         DispatchQueue.main.async(execute: {
             if (self.window?.isVisible ?? false) || !self.initialized {
                 self.circle?.toolTip = "\(localizedString("CPU usage")): \(Int(value.totalUsage.rounded(toPlaces: 2) * 100))%"

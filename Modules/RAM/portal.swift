@@ -69,7 +69,7 @@ public class Portal: PortalWrapper {
         return view
     }
     
-    internal func callback(_ value: RAM_Usage) {
+    nonisolated internal func callback(_ value: RAM_Usage) {
         DispatchQueue.main.async(execute: {
             if (self.window?.isVisible ?? false) || !self.initialized {
                 self.usedField?.stringValue = Units(bytes: Int64(value.used)).getReadableMemory(style: .memory)

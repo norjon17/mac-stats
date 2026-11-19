@@ -12,7 +12,8 @@
 import Cocoa
 import Carbon
 
-internal final class RegexCache {
+// @unchecked: cache is guarded by lock.
+internal final class RegexCache: @unchecked Sendable {
     static let shared = RegexCache()
 
     private var cache: [String: NSRegularExpression] = [:]
@@ -36,7 +37,8 @@ internal final class RegexCache {
     }
 }
 
-internal final class FormatterCache {
+// @unchecked: formatters and dictionaries are only touched while holding lock.
+internal final class FormatterCache: @unchecked Sendable {
     static let shared = FormatterCache()
     
     private var byteCount: [ByteCountFormatter.CountStyle: ByteCountFormatter] = [:]
@@ -142,7 +144,8 @@ internal final class WidgetTextCache {
     }
 }
 
-public final class ProcessIconCache {
+// @unchecked: only state is an NSCache, which is thread-safe.
+public final class ProcessIconCache: @unchecked Sendable {
     public static let shared = ProcessIconCache()
     
     private let cache = NSCache<NSNumber, NSImage>()
@@ -226,7 +229,7 @@ extension String: @retroactive LocalizedError {
         }
         
         buf.append(0)
-        return String(cString: buf)
+        return String(decoding: buf.prefix(while: { $0 != 0 }), as: UTF8.self)
     }
     
     public func matches(_ regex: String) -> Bool {
@@ -797,7 +800,8 @@ public class KeyboardShartcutView: NSStackView {
     private var keyCodes: [UInt16] = []
     private var value: [UInt16] = []
     private var interaction: Bool = false
-    private var monitor: Any? = nil
+    // shortcut: set once in init and read only in deinit, revisit if it is ever reassigned.
+    nonisolated(unsafe) private var monitor: Any? = nil
     
     public init(callback: @escaping (_ value: [UInt16]) -> Void, value: [UInt16]) {
         self.callback = callback
@@ -839,7 +843,8 @@ public class KeyboardShartcutView: NSStackView {
     }
     
     @objc private func startListening() {
-        guard AXIsProcessTrustedWithOptions([kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary) else { return }
+        // "AXTrustedCheckOptionPrompt" is the value of kAXTrustedCheckOptionPrompt, a C global var Swift 6 rejects.
+        guard AXIsProcessTrustedWithOptions(["AXTrustedCheckOptionPrompt": true] as CFDictionary) else { return }
         if let btn = self.stopButton {
             self.startButton?.removeFromSuperview()
             self.addArrangedSubview(btn)

@@ -135,7 +135,7 @@ public class Portal: PortalWrapper {
         return view
     }
 
-    public func usageCallback(_ value: Network_Usage) {
+    nonisolated public func usageCallback(_ value: Network_Usage) {
         DispatchQueue.main.async(execute: {
             self.chart?.addValue(upload: Double(value.bandwidth.upload), download: Double(value.bandwidth.download))
 

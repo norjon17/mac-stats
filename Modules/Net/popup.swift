@@ -257,14 +257,16 @@ internal class Popup: PopupWrapper {
         self.replay(self.usageCache, render: self.renderUsage)
     }
 
-    public func usageCallback(_ value: Network_Usage) {
-        self.apply(value, to: self.usageCache, render: self.renderUsage)
+    nonisolated public func usageCallback(_ value: Network_Usage) {
+        DispatchQueue.main.async(execute: {
+            self.usageCache.apply(value, visible: self.window?.isVisible ?? false, render: self.renderUsage)
 
-        if let chart = self.chart {
-            chart.setBase(self.base)
-            chart.setSpeedUnit(self.speedUnit)
-            chart.addValue(upload: Double(value.bandwidth.upload), download: Double(value.bandwidth.download))
-        }
+            if let chart = self.chart {
+                chart.setBase(self.base)
+                chart.setSpeedUnit(self.speedUnit)
+                chart.addValue(upload: Double(value.bandwidth.upload), download: Double(value.bandwidth.download))
+            }
+        })
     }
 
     private func renderUsage(_ value: Network_Usage) {

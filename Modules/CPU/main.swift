@@ -9,7 +9,7 @@
 import Cocoa
 import Kit
 
-public struct CPU_Load: Codable {
+public struct CPU_Load: Codable, Sendable {
     public var totalUsage: Double = 0
     var usagePerCore: [Double] = []
     var usageECores: Double? = nil
@@ -82,7 +82,7 @@ public class CPU: Module {
         return color.additional as! NSColor
     }
     
-    public init() {
+    @MainActor public init() {
         self.settingsView = Settings(.CPU)
         self.popupView = Popup(.CPU)
         self.portalView = Portal(.CPU, height: 120)
@@ -99,12 +99,7 @@ public class CPU: Module {
         )
         guard self.available else { return }
         
-        self.loadReader = LoadReader(.CPU) { [weak self] value in
-            self?.loadCallback(value)
-        }
-        self.temperatureReader = TemperatureReader(.CPU, popup: true) { [weak self] value in
-            self?.popupView.temperatureCallback(value)
-        }
+        self.initReaders()
         
         self.settingsView.callback = { [weak self] in
             self?.loadReader?.read()
@@ -119,12 +114,23 @@ public class CPU: Module {
         ])
     }
     
+    // Not in the @MainActor init: closures created there would inherit main-actor isolation and trap when readers call them off main.
+    private func initReaders() {
+        self.loadReader = LoadReader(.CPU) { [weak self] value in
+            self?.loadCallback(value)
+        }
+        self.temperatureReader = TemperatureReader(.CPU, popup: true) { [weak self] value in
+            self?.popupView.temperatureCallback(value)
+        }
+    }
+    
     private func loadCallback(_ raw: CPU_Load?) {
         guard let value = raw, self.enabled else { return }
         
         self.popupView.loadCallback(value)
         self.portalView.callback(value)
-        self.notificationsView.loadCallback(value)
+        // Hop to main: threshold state is edited by the UI and NotificationsWrapper's bookkeeping is not locked.
+        DispatchQueue.main.async { [notificationsView = self.notificationsView] in notificationsView.loadCallback(value) }
         self.previewView.loadCallback(value)
         
         self.menuBar.widgets.filter{ $0.isActive }.forEach { [self] (w: SWidget) in

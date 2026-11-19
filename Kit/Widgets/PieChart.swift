@@ -89,18 +89,17 @@ public class PieChart: WidgetWrapper {
         self.setWidth(self.size + x)
     }
     
-    public func setValue(_ list: [ColorValue]) {
-        var segments = list
-        
-        if self.monochromeState {
-            for i in 0..<segments.count {
-                if let color = segments[i].color {
-                    segments[i].color = color.grayscaled()
+    nonisolated public func setValue(_ list: [ColorValue]) {
+        // monochromeState belongs to main, so the grayscale pass runs there too.
+        DispatchQueue.main.async(execute: {
+            var segments = list
+            if self.monochromeState {
+                for i in 0..<segments.count {
+                    if let color = segments[i].color {
+                        segments[i].color = color.grayscaled()
+                    }
                 }
             }
-        }
-        
-        DispatchQueue.main.async(execute: {
             self.chart.setSegments(segments)
         })
     }

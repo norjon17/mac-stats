@@ -11,8 +11,7 @@ settings:
   base:
     ARCHS: arm64
     MACOSX_DEPLOYMENT_TARGET: "26.0"
-    SWIFT_VERSION: "5.0"
-    SWIFT_STRICT_CONCURRENCY: minimal
+    SWIFT_VERSION: "6.0"
     CODE_SIGN_STYLE: Manual
     CODE_SIGN_IDENTITY: "-"
     DEVELOPMENT_TEAM: ""

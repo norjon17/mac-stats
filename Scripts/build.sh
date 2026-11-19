@@ -5,6 +5,7 @@
 #        Scripts/build.sh --install  # build, then replace /Applications/mac-stats.app
 #
 # Requires Xcode 27+ and xcodegen (brew install xcodegen).
+# DERIVED_DATA=<dir> overrides the build cache location (default build/DerivedData).
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -12,11 +13,19 @@ cd "$(dirname "$0")/.."
 export DEVELOPER_DIR=${DEVELOPER_DIR:-/Applications/Xcode.app/Contents/Developer}
 command -v xcodegen >/dev/null || { echo "xcodegen not found: brew install xcodegen"; exit 1; }
 
+dd="${DERIVED_DATA:-build/DerivedData}"
+mkdir -p build
 xcodegen generate --quiet
-xcodebuild -project mac-stats.xcodeproj -scheme mac-stats -configuration Release \
-  -derivedDataPath build/DerivedData build 2>&1 | grep -E "error:|warning: .*\.swift|BUILD" || true
+# Fail loudly: the old `| grep ... || true` swallowed xcodebuild's exit code and shipped a stale app.
+if ! xcodebuild -project mac-stats.xcodeproj -scheme mac-stats -configuration Release \
+  -derivedDataPath "$dd" build > build/xcodebuild.log 2>&1; then
+  grep -E "error:" build/xcodebuild.log | sort -u || true
+  echo "build failed, full log: build/xcodebuild.log"
+  exit 1
+fi
+grep -E "warning: .*\.swift" build/xcodebuild.log | sort -u || true
 
-app="build/DerivedData/Build/Products/Release/mac-stats.app"
+app="$dd/Build/Products/Release/mac-stats.app"
 [[ -d "$app" ]] || { echo "build failed: $app missing"; exit 1; }
 rm -rf build/mac-stats.app
 cp -R "$app" build/mac-stats.app

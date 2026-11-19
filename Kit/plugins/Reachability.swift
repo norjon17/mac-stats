@@ -10,11 +10,22 @@
 import Foundation
 import Network
 
-public class Reachability {
-    public private(set) var isReachable: Bool = false
+// @unchecked: every mutable member is only touched while holding lock.
+public final class Reachability: @unchecked Sendable {
+    public var isReachable: Bool { self.lock.withLock { self._isReachable } }
 
-    public var reachable: () -> Void = {}
-    public var unreachable: () -> Void = {}
+    public var reachable: () -> Void {
+        get { self.lock.withLock { self._reachable } }
+        set { self.lock.withLock { self._reachable = newValue } }
+    }
+    public var unreachable: () -> Void {
+        get { self.lock.withLock { self._unreachable } }
+        set { self.lock.withLock { self._unreachable = newValue } }
+    }
+
+    private var _isReachable: Bool = false
+    private var _reachable: () -> Void = {}
+    private var _unreachable: () -> Void = {}
 
     private var monitor: NWPathMonitor?
     private let queue = DispatchQueue(label: "eu.exelban.ReachabilityQueue")
@@ -53,11 +64,11 @@ public class Reachability {
     }
 
     private func update(_ reachable: Bool) {
-        self.isReachable = reachable
-        if reachable {
-            self.reachable()
-        } else {
-            self.unreachable()
+        // Callback runs outside the lock so it may touch this object.
+        let callback: () -> Void = self.lock.withLock {
+            self._isReachable = reachable
+            return reachable ? self._reachable : self._unreachable
         }
+        callback()
     }
 }

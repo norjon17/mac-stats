@@ -21,7 +21,7 @@ public class Sensors: Module {
 
     private var selectedSensor: String
 
-    public init() {
+    @MainActor public init() {
         self.settingsView = Settings(.sensors)
         self.popupView = Popup()
         self.portalView = Portal(.sensors)
@@ -37,9 +37,7 @@ public class Sensors: Module {
         )
         guard self.available else { return }
 
-        self.sensorsReader = SensorsReader { [weak self] value in
-            self?.usageCallback(value)
-        }
+        self.initReaders()
 
         self.settingsView.setList(self.sensorsReader?.list.sensors)
         self.popupView.setup(self.sensorsReader?.list.sensors)
@@ -47,8 +45,10 @@ public class Sensors: Module {
         self.notificationsView.setup(self.sensorsReader?.list.sensors)
 
         self.settingsView.callback = { [weak self] in
+            // shortcut: Reader subclasses are not Sendable (same as Kit's Reader.readInBackground), revisit when Reader is made Sendable or an actor.
+            nonisolated(unsafe) let reader = self?.sensorsReader
             DispatchQueue.global(qos: .utility).async {
-                self?.sensorsReader?.read()
+                reader?.read()
             }
         }
         self.settingsView.setInterval = { [weak self] value in
@@ -56,8 +56,10 @@ public class Sensors: Module {
         }
         self.settingsView.selectedHandler = { [weak self] value in
             self?.selectedSensor = value
+            // shortcut: Reader subclasses are not Sendable (same as Kit's Reader.readInBackground), revisit when Reader is made Sendable or an actor.
+            nonisolated(unsafe) let reader = self?.sensorsReader
             DispatchQueue.global(qos: .utility).async {
-                self?.sensorsReader?.read()
+                reader?.read()
             }
         }
         self.popupView.visibilityCallback = { [weak self] visible in
@@ -67,12 +69,20 @@ public class Sensors: Module {
         self.setReaders([self.sensorsReader])
     }
 
+    // Not in the @MainActor init: closures created there would inherit main-actor isolation and trap when readers call them off main.
+    private func initReaders() {
+        self.sensorsReader = SensorsReader { [weak self] value in
+            self?.usageCallback(value)
+        }
+    }
+
     private func usageCallback(_ raw: Sensors_List?) {
         guard let value = raw, self.enabled else { return }
 
         self.popupView.usageCallback(value.sensors)
         self.portalView.usageCallback(value.sensors)
-        self.notificationsView.usageCallback(value.sensors)
+        // Hop to main: threshold state is edited by the UI and NotificationsWrapper's bookkeeping is not locked.
+        DispatchQueue.main.async { [notificationsView = self.notificationsView, sensors = value.sensors] in notificationsView.usageCallback(sensors) }
 
         let activeWidgets = self.menuBar.widgets.filter{ $0.isActive }
         self.sensorsReader?.sleepMode(state: activeWidgets.contains(where: {$0.item is Label}) && activeWidgets.count == 1)

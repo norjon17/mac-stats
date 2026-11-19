@@ -12,6 +12,7 @@
 import Cocoa
 import Kit
 
+@MainActor
 internal class CombinedView: NSObject, NSGestureRecognizerDelegate {
     private var menuBarItem: NSStatusItem? = nil
     private var view: NSView = NSView(frame: NSRect(x: 0, y: 0, width: 0, height: Constants.Widget.height))
@@ -221,7 +222,7 @@ private class SeparatorLineView: NSView {
     }
 }
 
-private class Popup: NSStackView, Popup_p {
+private class Popup: NSStackView, @MainActor Popup_p {
     fileprivate var keyboardShortcut: [UInt16] = []
     fileprivate var sizeCallback: ((NSSize) -> Void)? = nil
     

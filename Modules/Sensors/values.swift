@@ -15,7 +15,7 @@ import Cocoa
 /// Sensor shown by the Mini widget until the user picks another one.
 internal let defaultSelectedSensor = "Average CPU"
 
-public enum SensorGroup: String, Codable {
+public enum SensorGroup: String, Codable, Sendable {
     case CPU = "CPU"
     case GPU = "GPU"
     case system = "Systems"
@@ -25,11 +25,11 @@ public enum SensorGroup: String, Codable {
     public static let ordered: [SensorGroup] = [.CPU, .GPU, .system, .sensor]
 }
 
-public enum SensorType: String, Codable {
+public enum SensorType: String, Codable, Sendable {
     case temperature = "Temperature"
 }
 
-public protocol Sensor_p {
+public protocol Sensor_p: Sendable {
     var key: String { get }
     var name: String { get }
     var value: Double { get set }
@@ -50,7 +50,8 @@ public protocol Sensor_p {
     var formattedPopupValue: String { get }
 }
 
-public class Sensors_List: Codable {
+// @unchecked: `list` is only touched inside `queue` (reads sync, writes as barriers).
+public class Sensors_List: Codable, @unchecked Sendable {
     private var queue: DispatchQueue = DispatchQueue(label: "eu.exelban.Stats.Sensors.SynchronizedArray", attributes: .concurrent)
 
     private var list: [Sensor_p] = []
@@ -88,7 +89,7 @@ public class Sensors_List: Codable {
     }
 }
 
-public struct Sensor: Sensor_p, Codable {
+public struct Sensor: Sensor_p, Codable, Sendable {
     public var key: String
     public var name: String
 

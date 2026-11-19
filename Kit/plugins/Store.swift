@@ -11,7 +11,8 @@
 
 import Cocoa
 
-public class Store {
+// @unchecked: cache is read via cacheQueue.sync and written via barrier blocks (or in init); UserDefaults is thread-safe.
+public final class Store: @unchecked Sendable {
     public static let shared = Store()
     private let defaults = UserDefaults.standard
     private var cache: [String: Any] = [:]
@@ -34,6 +35,8 @@ public class Store {
     }
     
     private func setValue(_ value: Any?, for key: String) {
+        // shortcut: values are immutable property-list types (Bool/String/Int/Data/[Any]), revisit if Store takes mutable objects.
+        nonisolated(unsafe) let value = value
         self.cacheQueue.async(flags: .barrier) {
             self.cache[key] = value
         }
@@ -143,8 +146,10 @@ public class Store {
             }
         }
         
+        // shortcut: importedDict is a fresh copy no one else holds, revisit if it is shared before this point.
+        nonisolated(unsafe) let snapshot = importedDict
         self.cacheQueue.async(flags: .barrier) {
-            self.cache = importedDict
+            self.cache = snapshot
         }
         
         self.defaults.setPersistentDomain(importedDict, forName: id)

@@ -11,7 +11,7 @@
 
 import Cocoa
 
-public struct DoubleValue {
+public struct DoubleValue: Sendable {
     public var ts: Date = Date()
     public let value: Double
     
@@ -20,7 +20,7 @@ public struct DoubleValue {
     }
 }
 
-public struct ColorValue: Equatable {
+public struct ColorValue: Equatable, Sendable {
     public var ts: Date = Date()
     public let value: Double
     public var color: NSColor?
@@ -77,7 +77,7 @@ public let CombinedModulesSpacings: [KeyValue_t] = [
     KeyValue_t(key: "8", value: "8", additional: 8)
 ]
 
-public enum DataSizeBase: String {
+public enum DataSizeBase: String, Sendable {
     case bit
     case byte
 }
@@ -310,7 +310,7 @@ public let notificationLevels: [KeyValue_t] = [
     KeyValue_t(key: "1.0", value: "100%")
 ]
 
-public struct Scale: KeyValue_p, Equatable {
+public struct Scale: KeyValue_p, Equatable, Sendable {
     public let key: String
     public let value: String
     
@@ -338,7 +338,7 @@ extension Scale: CaseIterable {
     }
 }
 
-public var LineChartHistory: [KeyValue_p] = [
+public let LineChartHistory: [KeyValue_t] = [
     KeyValue_t(key: "60", value: "1 minute"),
     KeyValue_t(key: "120", value: "2 minutes"),
     KeyValue_t(key: "180", value: "3 minutes"),
@@ -386,7 +386,7 @@ extension SizeUnit: CaseIterable {
     }
 }
 
-public enum RAMPressure: String, Codable {
+public enum RAMPressure: String, Codable, Sendable {
     case normal
     case warning
     case critical

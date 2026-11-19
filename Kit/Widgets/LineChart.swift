@@ -28,8 +28,9 @@ public class LineChart: WidgetWrapper {
         height: Constants.Widget.height - (2*Constants.Widget.margin.y)
     ), num: 60, animation: false)
     private var colors: [SColor] = SColor.allCases.filter({ $0 != SColor.cluster })
-    private var _value: Double = 0
-    private var _pressureLevel: RAMPressure = .normal
+    // Setters run on reader threads; every access to the _-prefixed/guarded vars below goes through self.queue.
+    nonisolated(unsafe) private var _value: Double = 0
+    nonisolated(unsafe) private var _pressureLevel: RAMPressure = .normal
     
     private var historyNumbers: [KeyValue_p] = [
         KeyValue_t(key: "30", value: "30"),
@@ -247,17 +248,17 @@ public class LineChart: WidgetWrapper {
         self.setWidth(width)
     }
     
-    public func setValue(_ newValue: Double) {
+    nonisolated public func setValue(_ newValue: Double) {
         self.queue.sync {
             self._value = newValue
         }
-        self.chart.addValue(newValue)
         DispatchQueue.main.async(execute: {
+            self.chart.addValue(newValue)
             self.needsDisplay = true
         })
     }
     
-    public func setPressure(_ newPressureLevel: RAMPressure) {
+    nonisolated public func setPressure(_ newPressureLevel: RAMPressure) {
         let updated = self.queue.sync { () -> Bool in
             guard self._pressureLevel != newPressureLevel else { return false }
             self._pressureLevel = newPressureLevel

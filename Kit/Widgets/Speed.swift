@@ -29,8 +29,9 @@ public class SpeedWidget: WidgetWrapper {
     private var symbols: (input: String, output: String) = ("I", "O")
     private var words: (input: String, output: String) = ("Input", "Output")
     
-    private var _inputValue: Int64 = 0
-    private var _outputValue: Int64 = 0
+    // Written by the Net reader thread: guarded by self.queue.
+    nonisolated(unsafe) private var _inputValue: Int64 = 0
+    nonisolated(unsafe) private var _outputValue: Int64 = 0
     private var inputValue: Int64 {
         get { self.queue.sync { self._inputValue } }
         set { self.queue.sync { self._inputValue = newValue } }
@@ -664,7 +665,7 @@ public class SpeedWidget: WidgetWrapper {
         self.display()
     }
     
-    public func setValue(input: Int64, output: Int64) {
+    nonisolated public func setValue(input: Int64, output: Int64) {
         let input = abs(input)
         let output = abs(output)
         let updated = self.queue.sync { () -> Bool in

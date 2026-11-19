@@ -12,8 +12,9 @@
 import Cocoa
 
 public class TextWidget: WidgetWrapper {
-    private var value: String = ""
-    private static let variableRegex = try? NSRegularExpression(pattern: "(\\$[a-zA-Z0-9_]+)(?:\\.([a-zA-Z0-9_]+))?")
+    // Setters run on reader threads; every access to the _-prefixed/guarded vars below goes through self.queue.
+    nonisolated(unsafe) private var value: String = ""
+    nonisolated private static let variableRegex = try? NSRegularExpression(pattern: "(\\$[a-zA-Z0-9_]+)(?:\\.([a-zA-Z0-9_]+))?")
     
     public init(title: String, preview: Bool = false) {
         super.init(.text, title: title, frame: CGRect(
@@ -68,7 +69,7 @@ public class TextWidget: WidgetWrapper {
         self.setWidth(width)
     }
     
-    public func setValue(_ newValue: String) {
+    nonisolated public func setValue(_ newValue: String) {
         let updated = self.queue.sync { () -> Bool in
             guard self.value != newValue else { return false }
             self.value = newValue
@@ -80,7 +81,7 @@ public class TextWidget: WidgetWrapper {
         })
     }
     
-    static public func parseText(_ raw: String) -> [KeyValue_t] {
+    nonisolated static public func parseText(_ raw: String) -> [KeyValue_t] {
         var pairs: [KeyValue_t] = []
         guard let regex = TextWidget.variableRegex else { return pairs }
         let matches = regex.matches(in: raw, range: NSRange(raw.startIndex..., in: raw))

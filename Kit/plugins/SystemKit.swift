@@ -11,7 +11,7 @@
 
 import Cocoa
 
-public enum Platform: String, Codable {
+public enum Platform: String, Codable, Sendable {
     case intel
     
     case m1
@@ -100,7 +100,7 @@ public enum Platform: String, Codable {
     }
 }
 
-public enum deviceType: String {
+public enum deviceType: String, Sendable {
     case unknown
     case macMini
     case macPro
@@ -124,7 +124,7 @@ public enum coreType: Int, Codable {
     case `super` = 3
 }
 
-public struct model_s {
+public struct model_s: Sendable {
     public var id: String = ""
     public let name: String
     public let year: Int
@@ -221,10 +221,11 @@ public struct device_s {
     public var display: [display_s]? = nil
 }
 
-public class SystemKit {
+// @unchecked: device is only written in init and read-only afterwards.
+public final class SystemKit: @unchecked Sendable {
     public static let shared = SystemKit()
     
-    public var device: device_s = device_s()
+    public private(set) var device: device_s = device_s()
     
     public init() {
         let (modelID, serialNumber) = self.modelAndSerialNumber()
@@ -322,7 +323,7 @@ public class SystemKit {
         sysctlbyname("machdep.cpu.brand_string", nil, &sizeOfName, nil, 0)
         var nameChars = [CChar](repeating: 0, count: sizeOfName)
         sysctlbyname("machdep.cpu.brand_string", &nameChars, &sizeOfName, nil, 0)
-        var name = String(cString: nameChars)
+        var name = String(decoding: nameChars.prefix(while: { $0 != 0 }).map { UInt8(bitPattern: $0) }, as: UTF8.self)
         if name != "" {
             name = name.replacingOccurrences(of: "(TM)", with: "")
             name = name.replacingOccurrences(of: "(R)", with: "")

@@ -21,7 +21,8 @@ public class NetworkChart: WidgetWrapper {
     private var scaleState: Scale = .linear
     private var reverseOrderState: Bool = false
     
-    private var points: [(Double, Double)] = Array(repeating: (0, 0), count: 60)
+    // Setters run on reader threads; every access to the _-prefixed/guarded vars below goes through self.queue.
+    nonisolated(unsafe) private var points: [(Double, Double)] = Array(repeating: (0, 0), count: 60)
     
     private var width: CGFloat {
         get {
@@ -262,7 +263,7 @@ public class NetworkChart: WidgetWrapper {
         self.setWidth(width)
     }
     
-    public func setValue(upload: Double, download: Double) {
+    nonisolated public func setValue(upload: Double, download: Double) {
         self.queue.sync {
             self.points.remove(at: 0)
             self.points.append((upload, download))

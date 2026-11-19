@@ -12,7 +12,8 @@
 import Cocoa
 
 public class DotWidget: WidgetWrapper {
-    private var value: NSColor = .systemGreen
+    // Setters run on reader threads; every access to the _-prefixed/guarded vars below goes through self.queue.
+    nonisolated(unsafe) private var value: NSColor = .systemGreen
     
     public init(title: String, config: NSDictionary?, preview: Bool = false) {
         if config != nil {
@@ -55,7 +56,7 @@ public class DotWidget: WidgetWrapper {
         circle.fill()
     }
     
-    public func setValue(_ value: NSColor) {
+    nonisolated public func setValue(_ value: NSColor) {
         let updated = self.queue.sync { () -> Bool in
             guard self.value != value else { return false }
             self.value = value

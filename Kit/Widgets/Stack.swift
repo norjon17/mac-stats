@@ -11,7 +11,7 @@
 
 import Cocoa
 
-public struct Stack_t: KeyValue_p {
+public struct Stack_t: KeyValue_p, Sendable {
     public var key: String
     public var value: String
     public var label: String?
@@ -230,7 +230,7 @@ public class StackWidget: WidgetWrapper {
         return width
     }
     
-    public func setValues(_ values: [Stack_t]) {
+    nonisolated public func setValues(_ values: [Stack_t]) {
         DispatchQueue.main.async(execute: {
             var tableNeedsToBeUpdated: Bool = false
             

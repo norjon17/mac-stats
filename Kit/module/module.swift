@@ -89,7 +89,7 @@ open class Module {
         set { Store.shared.set(key: "\(self.name)_position", value: newValue) }
     }
     
-    public var popupKeyboardShortcut: [UInt16] { self.popupView?.keyboardShortcut ?? [] }
+    @MainActor public var popupKeyboardShortcut: [UInt16] { self.popupView?.keyboardShortcut ?? [] }
     
     private var moduleType: ModuleType
     
@@ -149,25 +149,30 @@ open class Module {
         NotificationCenter.default.addObserver(self, selector: #selector(listenForToggleWidget), name: .toggleWidget, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(listenForWindowOpen), name: .openWindow, object: nil)
         
-        // swiftlint:disable empty_count
-        if self.config.widgetsConfig.count != 0 {
-            // swiftlint:enable empty_count
-            self.initWidgets()
-        } else {
-            debug("Module started without widget", log: self.log)
+        // Module.init runs on the main thread (AppDelegate creates the modules).
+        // shortcut: Module is not Sendable (reader callbacks read it off-main), revisit when its UI part is split out.
+        nonisolated(unsafe) let module = self
+        MainActor.assumeIsolated {
+            // swiftlint:disable empty_count
+            if module.config.widgetsConfig.count != 0 {
+                // swiftlint:enable empty_count
+                module.initWidgets()
+            } else {
+                debug("Module started without widget", log: module.log)
+            }
+            
+            module.window = Window(
+                config: module.config,
+                widgets: module.menuBar.widgets,
+                modulePreview: module.previewView,
+                moduleSettings: module.settingsView,
+                popupSettings: module.popupView,
+                notificationsSettings: module.notificationsView
+            )
+            module.window?.setState(module.enabled)
+            
+            module.popup = PopupWindow(title: module.config.name, module: module.moduleType, view: module.popupView, visibilityCallback: module.popupVisibilityCallback)
         }
-        
-        self.window = Window(
-            config: self.config,
-            widgets: self.menuBar.widgets,
-            modulePreview: self.previewView,
-            moduleSettings: self.settingsView,
-            popupSettings: self.popupView,
-            notificationsSettings: self.notificationsView
-        )
-        self.window?.setState(self.enabled)
-        
-        self.popup = PopupWindow(title: self.config.name, module: self.moduleType, view: self.popupView, visibilityCallback: self.popupVisibilityCallback)
     }
     
     deinit {
@@ -210,7 +215,8 @@ open class Module {
         Store.shared.set(key: "\(self.config.name)_state", value: true)
         self.startReaders()
         self.menuBar.enable()
-        self.window?.setState(self.enabled)
+        // enable()/disable() are only called on the main thread (AppDelegate, settings UI, module notifications).
+        MainActor.assumeIsolated { [window = self.window, enabled = self.enabled] in window?.setState(enabled) }
         info("Module enabled", log: self.log)
     }
     
@@ -228,8 +234,10 @@ open class Module {
         }
         self.popupVisible = false
         self.menuBar.disable()
-        self.window?.setState(self.enabled)
-        self.popup?.setIsVisible(false)
+        MainActor.assumeIsolated { [window = self.window, popup = self.popup, enabled = self.enabled] in
+            window?.setState(enabled)
+            popup?.setIsVisible(false)
+        }
         info("Module disabled", log: self.log)
     }
     
@@ -241,7 +249,7 @@ open class Module {
     open func isAvailable() -> Bool { return true }
     
     // load the widget and set up. Calls when module init
-    private func initWidgets() {
+    @MainActor private func initWidgets() {
         guard self.available else { return }
         
         self.config.availableWidgets.forEach { (widgetType: widget_t) in
@@ -308,7 +316,7 @@ open class Module {
         }
     }
     
-    @objc private func listenForPopupToggle(_ notification: Notification) {
+    @MainActor @objc private func listenForPopupToggle(_ notification: Notification) {
         guard let popup = self.popup,
               let name = notification.userInfo?["module"] as? String,
               let buttonOrigin = notification.userInfo?["origin"] as? CGPoint,
@@ -375,7 +383,7 @@ open class Module {
         }
     }
     
-    @objc private func listenForMouseDownInSettings() {
+    @MainActor @objc private func listenForMouseDownInSettings() {
         if let popup = self.popup, popup.isVisible && !popup.locked {
             self.popup?.setIsVisible(false)
         }

@@ -155,10 +155,11 @@ private func drawToolTip(_ frame: NSRect, _ point: CGPoint, value: String, subti
 }
 
 public class ChartView: NSView {
+    // Convention: nonisolated(unsafe) stored vars in ChartView subclasses are chart state, only touched inside read {} (main) or write {} (stateQueue barrier).
     public var id: String = UUID().uuidString
-    fileprivate let stateQueue: DispatchQueue
+    nonisolated fileprivate let stateQueue: DispatchQueue
     
-    fileprivate var animationEnabled: Bool = false
+    nonisolated(unsafe) fileprivate var animationEnabled: Bool = false
     fileprivate let animationDuration: CFTimeInterval = 0.25
     
     fileprivate init(frame: NSRect, queueLabel: String) {
@@ -172,11 +173,13 @@ public class ChartView: NSView {
         fatalError("init(coder:) has not been implemented")
     }
     
+    // Main-only on purpose: a sync block from main keeps main-actor isolation, and the compiler rejects off-main callers.
     fileprivate func read<T>(_ block: () -> T) -> T {
         self.stateQueue.sync(execute: block)
     }
     
-    fileprivate func write(_ block: @escaping () -> Void) {
+    // @Sendable so the block is not a main-actor closure: Swift 6 traps a main-actor closure that runs on stateQueue.
+    nonisolated fileprivate func write(_ block: @escaping @Sendable () -> Void) {
         self.stateQueue.async(flags: .barrier, execute: block)
     }
     
@@ -195,7 +198,7 @@ public class ChartView: NSView {
         self.read { self.animationEnabled } && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
     }
     
-    fileprivate func onMain(_ block: @escaping () -> Void) {
+    fileprivate func onMain(_ block: @escaping @MainActor () -> Void) {
         if Thread.isMainThread {
             block()
         } else {
@@ -238,22 +241,22 @@ public class LineChartView: ChartView {
     
     private let dateFormatter = DateFormatter()
     
-    private var points: [DoubleValue?]
-    private var head: Int = 0
-    private var shadowPoints: [DoubleValue?] = []
-    private var transparent: Bool = true
-    private var flipY: Bool = false
-    private var minMax: Bool = false
-    private var color: NSColor
-    private var suffix: String
-    private var toolTipFunc: ((DoubleValue) -> String)?
-    private var isTooltipEnabled: Bool = true
-    private var xLegend: Bool = false
-    private var yLegend: Bool = false
+    nonisolated(unsafe) private var points: [DoubleValue?]
+    nonisolated(unsafe) private var head: Int = 0
+    nonisolated(unsafe) private var shadowPoints: [DoubleValue?] = []
+    nonisolated(unsafe) private var transparent: Bool = true
+    nonisolated(unsafe) private var flipY: Bool = false
+    nonisolated(unsafe) private var minMax: Bool = false
+    nonisolated(unsafe) private var color: NSColor
+    nonisolated(unsafe) private var suffix: String
+    nonisolated(unsafe) private var toolTipFunc: ((DoubleValue) -> String)?
+    nonisolated(unsafe) private var isTooltipEnabled: Bool = true
+    nonisolated(unsafe) private var xLegend: Bool = false
+    nonisolated(unsafe) private var yLegend: Bool = false
     
-    private var scale: Scale
-    private var fixedScale: Double
-    private var zeroValue: Double
+    nonisolated(unsafe) private var scale: Scale
+    nonisolated(unsafe) private var fixedScale: Double
+    nonisolated(unsafe) private var zeroValue: Double
     private let legendDateFormatter = DateFormatter()
     
     private var cursor: NSPoint? = nil
@@ -578,12 +581,12 @@ public class LineChartView: ChartView {
     }
     
     public func addValue(_ value: DoubleValue) {
-        var value = value
-        if !value.value.isFinite {
-            let ts = value.ts
-            value = DoubleValue(0)
-            value.ts = ts
-        }
+        let value: DoubleValue = {
+            guard !value.value.isFinite else { return value }
+            var zero = DoubleValue(0)
+            zero.ts = value.ts
+            return zero
+        }()
         self.write {
             let n = self.points.count
             guard n > 0 else { return }
@@ -624,7 +627,7 @@ public class LineChartView: ChartView {
         }
     }
     
-    private func orderedPointsLocked() -> [DoubleValue?] {
+    nonisolated private func orderedPointsLocked() -> [DoubleValue?] {
         let n = self.points.count
         guard n > 0 else { return [] }
         var result: [DoubleValue?] = []
@@ -635,7 +638,7 @@ public class LineChartView: ChartView {
         return result
     }
     
-    private func intervalStatsLocked() -> (lastTs: Date, typical: TimeInterval)? {
+    nonisolated private func intervalStatsLocked() -> (lastTs: Date, typical: TimeInterval)? {
         var deltas: [TimeInterval] = []
         var prev: Date?
         var lastTs: Date?
@@ -733,6 +736,8 @@ public class LineChartView: ChartView {
     }
     
     public func setToolTipFunc(_ newValue: ((DoubleValue) -> String)?) {
+        // shortcut: the formatter is only stored here and called from draw() on main; make it @Sendable if that changes.
+        nonisolated(unsafe) let newValue = newValue
         self.write { self.toolTipFunc = newValue }
     }
     
@@ -790,8 +795,8 @@ public class LineChartView: ChartView {
 }
 
 public class NetworkChartView: ChartView {
-    private var base: DataSizeBase = .byte
-    private var speedUnit: String = NetworkSpeedUnitAuto
+    nonisolated(unsafe) private var base: DataSizeBase = .byte
+    nonisolated(unsafe) private var speedUnit: String = NetworkSpeedUnitAuto
     
     private var reversedOrder: Bool
     
@@ -920,16 +925,16 @@ public class NetworkChartView: ChartView {
 }
 
 public class PieChartView: ChartView {
-    private var filled: Bool
-    private var drawValue: Bool
-    private var lineCap: CGLineCap
-    private var segments: [ColorValue]
+    nonisolated(unsafe) private var filled: Bool
+    nonisolated(unsafe) private var drawValue: Bool
+    nonisolated(unsafe) private var lineCap: CGLineCap
+    nonisolated(unsafe) private var segments: [ColorValue]
     
-    private var nonActiveSegmentColor: NSColor = NSColor.lightGray
-    private var value: Double? = nil
-    private var maxValue: Double = 1
-    private var text: String? = nil
-    private var color: NSColor = NSColor.systemBlue
+    nonisolated(unsafe) private var nonActiveSegmentColor: NSColor = NSColor.lightGray
+    nonisolated(unsafe) private var value: Double? = nil
+    nonisolated(unsafe) private var maxValue: Double = 1
+    nonisolated(unsafe) private var text: String? = nil
+    nonisolated(unsafe) private var color: NSColor = NSColor.systemBlue
     
     public init(
         frame: NSRect = .zero,
@@ -1074,8 +1079,8 @@ public class PieChartView: ChartView {
 }
 
 public class TachometerGraphView: ChartView {
-    private var filled: Bool
-    private var segments: [ColorValue]
+    nonisolated(unsafe) private var filled: Bool
+    nonisolated(unsafe) private var segments: [ColorValue]
     
     public init(frame: NSRect = .zero, segments: [ColorValue], filled: Bool = true, animation: Bool = true) {
         self.filled = filled
@@ -1138,9 +1143,9 @@ public class TachometerGraphView: ChartView {
 }
 
 public class GaugeChartView: ChartView {
-    private var segments: [ColorValue]
-    private var activeSegment: Int? = nil
-    private var title: String? = nil
+    nonisolated(unsafe) private var segments: [ColorValue]
+    nonisolated(unsafe) private var activeSegment: Int? = nil
+    nonisolated(unsafe) private var title: String? = nil
     
     public init(frame: NSRect = .zero, segments: [ColorValue], title: String? = nil, animation: Bool = true) {
         self.segments = segments
@@ -1277,7 +1282,7 @@ public class GaugeChartView: ChartView {
 }
 
 public class ColumnChartView: ChartView {
-    private var values: [ColorValue] = []
+    nonisolated(unsafe) private var values: [ColorValue] = []
     private var cursor: CGPoint? = nil
     
     public init(frame: NSRect = NSRect.zero, num: Int, animation: Bool = true) {
@@ -1404,7 +1409,7 @@ public class GridChartView: ChartView {
     private let notOkColor: NSColor = .systemRed
     private let inactiveColor: NSColor = .underPageBackgroundColor.withAlphaComponent(0.4)
     
-    private var values: [ColorValue?] = []
+    nonisolated(unsafe) private var values: [ColorValue?] = []
     private let grid: (rows: Int, columns: Int)
     
     private let dateFormatter = DateFormatter()
@@ -1506,10 +1511,10 @@ public class GridChartView: ChartView {
 }
 
 public class BarChartView: ChartView {
-    private var values: [ColorValue] = []
+    nonisolated(unsafe) private var values: [ColorValue] = []
     
-    private var size: CGFloat?
-    private var horizontal: Bool
+    nonisolated(unsafe) private var size: CGFloat?
+    nonisolated(unsafe) private var horizontal: Bool
     
     public init(frame: NSRect = NSRect.zero, size: CGFloat? = nil, horizontal: Bool = false, animation: Bool = true) {
         self.size = size

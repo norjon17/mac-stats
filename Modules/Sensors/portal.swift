@@ -41,7 +41,7 @@ public class Portal: PortalWrapper {
         }
     }
 
-    public func usageCallback(_ values: [Sensor_p]) {
+    nonisolated public func usageCallback(_ values: [Sensor_p]) {
         DispatchQueue.main.async(execute: {
             if self.window?.isVisible ?? false {
                 values.forEach { (s: Sensor_p) in

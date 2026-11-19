@@ -39,7 +39,7 @@ public protocol ReaderInternal_p {
     func read()
 }
 
-open class Reader<T: Codable>: NSObject, ReaderInternal_p {
+open class Reader<T: Codable & SendableMetatype>: NSObject, ReaderInternal_p {
     public private(set) lazy var log: NextLog = NextLog.shared.copy(category: "\(String(describing: self))")
     private let valueQueue = DispatchQueue(label: "eu.exelban.readerActiveQueue")
     private var _value: T?
@@ -109,9 +109,7 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
     
     open func start() {
         if (self.popup || self.preview || self.sleep) && self.locked {
-            DispatchQueue.global(qos: .background).async {
-                self.read()
-            }
+            self.readInBackground()
             return
         }
         
@@ -125,7 +123,7 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
                 }
             } else if !self.initlizalized {
                 self.startNormalRepeater()
-                DispatchQueue.global(qos: .background).async { self.read() }
+                self.readInBackground()
                 self.repeatTask?.start()
                 self.initlizalized = true
             } else {
@@ -170,6 +168,12 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
         }
     }
     
+    private func readInBackground() {
+        // shortcut: Reader is not Sendable (it and its Modules subclasses keep unsynchronized state that read() owns), revisit when Reader is made Sendable or an actor.
+        nonisolated(unsafe) let reader = self
+        DispatchQueue.global(qos: .background).async { reader.read() }
+    }
+    
     private func delayToNextSecondBoundary() -> TimeInterval {
         let now = Date().addingTimeInterval(self.alignOffset)
         let fractional = now.timeIntervalSince1970.truncatingRemainder(dividingBy: 1.0)
@@ -199,10 +203,12 @@ open class Reader<T: Codable>: NSObject, ReaderInternal_p {
         
         self.alignGeneration &+= 1
         let generation = self.alignGeneration
-        self.alignQueue.asyncAfter(deadline: .now() + self.delayToNextSecondBoundary()) { [weak self] in
-            guard let self, self.alignGeneration == generation, self.repeatTask == nil else { return }
+        // shortcut: same as readInBackground(), Reader is not Sendable yet.
+        nonisolated(unsafe) weak let weakSelf = self
+        self.alignQueue.asyncAfter(deadline: .now() + self.delayToNextSecondBoundary()) {
+            guard let self = weakSelf, self.alignGeneration == generation, self.repeatTask == nil else { return }
 
-            DispatchQueue.global(qos: .background).async { self.read() }
+            self.readInBackground()
             self.repeatTask = Repeater(seconds: Int(interval)) { [weak self] in
                 self?.read()
             }

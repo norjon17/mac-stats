@@ -16,7 +16,7 @@ import RAM
 import Sensors
 import Net
 
-var modules: [Module] = [
+@MainActor let modules: [Module] = [
     CPU(),
     RAM(),
     Sensors(),
@@ -24,7 +24,8 @@ var modules: [Module] = [
 ]
 
 @main
-class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+@MainActor
+class AppDelegate: NSObject, NSApplicationDelegate, @MainActor UNUserNotificationCenterDelegate {
     internal var settingsWindow: SettingsWindow?
 
     internal var menuBarItem: NSStatusItem? = nil
@@ -92,11 +93,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDele
         modules.forEach{ $0.terminate() }
     }
     
-    @objc private func handleWillSleep() {
+    // nonisolated: @objc observers on a @MainActor class trap if the notification ever arrives off main; these only log.
+    @objc nonisolated private func handleWillSleep() {
         info("System will sleep, \(HealthMonitor.shared.snapshot())")
     }
     
-    @objc private func handleDidWake() {
+    @objc nonisolated private func handleDidWake() {
         info("System did wake")
     }
 

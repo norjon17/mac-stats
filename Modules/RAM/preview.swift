@@ -242,7 +242,7 @@ internal class Preview: PreviewWrapper {
         return view
     }
     
-    public func loadCallback(_ value: RAM_Usage) {
+    nonisolated public func loadCallback(_ value: RAM_Usage) {
         DispatchQueue.main.async(execute: {
             if (self.window?.isVisible ?? false) || !self.initialized {
                 self.appField?.stringValue = Units(bytes: Int64(value.app)).getReadableMemory(style: .memory)

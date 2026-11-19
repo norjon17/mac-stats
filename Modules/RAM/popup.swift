@@ -186,9 +186,11 @@ internal class Popup: PopupWrapper {
         return view
     }
     
-    public func loadCallback(_ value: RAM_Usage) {
-        self.apply(value, to: self.loadCache, render: self.renderLoad)
-        self.chart?.addValue(value.usage)
+    nonisolated public func loadCallback(_ value: RAM_Usage) {
+        DispatchQueue.main.async(execute: {
+            self.loadCache.apply(value, visible: self.window?.isVisible ?? false, render: self.renderLoad)
+            self.chart?.addValue(value.usage)
+        })
     }
     
     private func renderLoad(_ value: RAM_Usage) {

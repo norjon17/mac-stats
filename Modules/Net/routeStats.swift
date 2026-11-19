@@ -18,13 +18,15 @@
 
 import Foundation
 
-internal final class RouteStatsReader {
+// All mutable state is confined to `queue` (NStat callbacks run there too); `snapshot` is guarded by `snapshotLock`.
+internal final class RouteStatsReader: @unchecked Sendable {
     private typealias Ref = UnsafeMutableRawPointer
     private typealias ManagerCallback = @convention(block) (Ref?, UnsafeMutableRawPointer?) -> Void
     private typealias DictBlock = @convention(block) (CFDictionary?) -> Void
     private typealias VoidBlock = @convention(block) () -> Void
 
-    private struct API {
+    // Immutable after load(): C function pointers and constant CFStrings from dlsym.
+    private struct API: @unchecked Sendable {
         let managerCreate: @convention(c) (CFAllocator?, DispatchQueue, @escaping ManagerCallback) -> Ref?
         let managerDestroy: @convention(c) (Ref) -> Void
         let addAllRoutes: @convention(c) (Ref) -> Int32

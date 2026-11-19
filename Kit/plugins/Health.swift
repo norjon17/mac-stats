@@ -13,7 +13,8 @@
 import Foundation
 import Darwin
 
-public final class HealthMonitor {
+// @unchecked: timer is only read/written on self.queue; other members are immutable.
+public final class HealthMonitor: @unchecked Sendable {
     public static let shared = HealthMonitor()
 
     private let queue = DispatchQueue(label: "eu.exelban.Stats.health", qos: .utility)

@@ -13,14 +13,14 @@ import Cocoa
 import Kit
 import SystemConfiguration
 
-public enum Network_t: String, Codable {
+public enum Network_t: String, Codable, Sendable {
     case wifi
     case ethernet
     case bluetooth
     case other
 }
 
-public struct Network_interface: Codable {
+public struct Network_interface: Codable, Sendable {
     var status: Bool = false
     var displayName: String = ""
     var BSDName: String = ""
@@ -28,17 +28,17 @@ public struct Network_interface: Codable {
     var transmitRate: Double = 0
 }
 
-public struct Network_addr: Codable {
+public struct Network_addr: Codable, Sendable {
     var v4: String? = nil
     var v6: String? = nil
 }
 
-public struct Bandwidth: Codable {
+public struct Bandwidth: Codable, Sendable {
     var upload: Int64 = 0
     var download: Int64 = 0
 }
 
-public struct Network_Usage: Codable {
+public struct Network_Usage: Codable, Sendable {
     var bandwidth: Bandwidth = Bandwidth()
     var total: Bandwidth = Bandwidth()
 
@@ -78,7 +78,7 @@ public class Network: Module {
         Store.shared.string(key: "\(self.name)_textWidgetValue", defaultValue: "$addr.private - $status")
     }
 
-    public init() {
+    @MainActor public init() {
         self.settingsView = Settings(.network)
         self.popupView = Popup(.network)
         self.portalView = Portal(.network, height: 90)
@@ -95,9 +95,7 @@ public class Network: Module {
         )
         guard self.available else { return }
 
-        self.usageReader = UsageReader(.network) { [weak self] value in
-            self?.usageCallback(value)
-        }
+        self.initReaders()
 
         self.settingsView.callback = { [weak self] in
             self?.usageReader?.refresh()
@@ -108,6 +106,13 @@ public class Network: Module {
 
         self.setReaders([self.usageReader])
         self.setUsageReset()
+    }
+
+    // Not in the @MainActor init: closures created there would inherit main-actor isolation and trap when readers call them off main.
+    private func initReaders() {
+        self.usageReader = UsageReader(.network) { [weak self] value in
+            self?.usageCallback(value)
+        }
     }
 
     public override func isAvailable() -> Bool {
@@ -125,7 +130,8 @@ public class Network: Module {
 
         self.popupView.usageCallback(value)
         self.portalView.usageCallback(value)
-        self.notificationsView.usageCallback(value)
+        // Hop to main: threshold state is edited by the UI and NotificationsWrapper's bookkeeping is not locked.
+        DispatchQueue.main.async { [notificationsView = self.notificationsView] in notificationsView.usageCallback(value) }
         self.previewView.usageCallback(value)
 
         var upload: Int64 = value.bandwidth.upload

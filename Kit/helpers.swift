@@ -22,7 +22,8 @@ public protocol KeyValue_p {
     var value: String { get }
 }
 
-public struct KeyValue_t: KeyValue_p, Codable {
+// @unchecked: all members are let; `additional` only ever holds immutable values (enums, Int, UnitTemperature, NSTextAlignment).
+public struct KeyValue_t: KeyValue_p, Codable, @unchecked Sendable {
     public let key: String
     public let value: String
     public let additional: Any?
@@ -271,12 +272,12 @@ public class StatusBadgeView: NSStackView {
     }
 }
 
-public var isRTL: Bool {
+@MainActor public var isRTL: Bool {
     NSApp.userInterfaceLayoutDirection == .rightToLeft
 }
 
 public extension NSTextAlignment {
-    static var trailing: NSTextAlignment {
+    @MainActor static var trailing: NSTextAlignment {
         isRTL ? .left : .right
     }
 }
@@ -302,7 +303,7 @@ public extension NSBezierPath {
     }
 }
 
-public func separatorView(_ title: String, origin: NSPoint = NSPoint(x: 0, y: 0), width: CGFloat = 0, rightInset: CGFloat = 0) -> NSView {
+@MainActor public func separatorView(_ title: String, origin: NSPoint = NSPoint(x: 0, y: 0), width: CGFloat = 0, rightInset: CGFloat = 0) -> NSView {
     let view: NSView = NSView(frame: NSRect(x: origin.x, y: origin.y, width: width, height: 30))
     view.heightAnchor.constraint(equalToConstant: view.bounds.height).isActive = true
     
@@ -353,7 +354,7 @@ public func separatorView(_ title: String, origin: NSPoint = NSPoint(x: 0, y: 0)
     return view
 }
 
-public func popupBadgeRow(_ view: NSView? = nil, title: String, status: Bool? = nil, ok: String = "UP", notOk: String = "DOWN") -> (LabelField, StatusBadgeView, NSView) {
+@MainActor public func popupBadgeRow(_ view: NSView? = nil, title: String, status: Bool? = nil, ok: String = "UP", notOk: String = "DOWN") -> (LabelField, StatusBadgeView, NSView) {
     let width = view?.frame.width ?? 0
     let height: CGFloat = 22
     let rowView: NSView = NSView(frame: NSRect(x: 0, y: 0, width: width, height: height))
@@ -377,7 +378,7 @@ public func popupBadgeRow(_ view: NSView? = nil, title: String, status: Bool? = 
     return (labelView, badgeView, rowView)
 }
 
-public func popupRow(_ view: NSView? = nil, title: String, value: String, multiline: Bool = false) -> (LabelField, ValueField, NSView) {
+@MainActor public func popupRow(_ view: NSView? = nil, title: String, value: String, multiline: Bool = false) -> (LabelField, ValueField, NSView) {
     let lines: CGFloat = CGFloat(multiline ? value.filter { $0 == "\n" }.count + 1 : 1)
     let width = view?.frame.width ?? 0
     let height = multiline ? ((lines*16) + (22-16)): 22
@@ -405,7 +406,7 @@ public func popupRow(_ view: NSView? = nil, title: String, value: String, multil
     return (labelView, valueView, rowView)
 }
 
-public func portalRow(_ v: NSStackView, title: String, value: String = "", isSelectable: Bool = false) -> (LabelField, ValueField, NSStackView) {
+@MainActor public func portalRow(_ v: NSStackView, title: String, value: String = "", isSelectable: Bool = false) -> (LabelField, ValueField, NSStackView) {
     let view: NSStackView = NSStackView()
     view.orientation = .horizontal
     view.distribution = .fillProportionally
@@ -429,7 +430,7 @@ public func portalRow(_ v: NSStackView, title: String, value: String = "", isSel
     return (labelView, valueView, view)
 }
 
-public func popupWithColorRow(_ view: NSView, color: NSColor, title: String, value: String) -> (ColorBlock, LabelField, ValueField) {
+@MainActor public func popupWithColorRow(_ view: NSView, color: NSColor, title: String, value: String) -> (ColorBlock, LabelField, ValueField) {
     let rowView: NSView = NSView(frame: NSRect(x: 0, y: 0, width: view.frame.width, height: 22))
     
     let width = rowView.frame.width
@@ -452,7 +453,7 @@ public func popupWithColorRow(_ view: NSView, color: NSColor, title: String, val
     return (colorView, labelView, valueView)
 }
 
-public func portalWithColorRow(_ v: NSStackView, color: NSColor, title: String) -> (NSView, ValueField) {
+@MainActor public func portalWithColorRow(_ v: NSStackView, color: NSColor, title: String) -> (NSView, ValueField) {
     let view: NSStackView = NSStackView()
     view.orientation = .horizontal
     view.distribution = .fillProportionally
@@ -478,7 +479,7 @@ public func portalWithColorRow(_ v: NSStackView, color: NSColor, title: String) 
     return (colorView, valueView)
 }
 
-public func previewBadgeRow(_ view: NSStackView?, title: String, status: Bool? = nil) -> StatusBadgeView {
+@MainActor public func previewBadgeRow(_ view: NSStackView?, title: String, status: Bool? = nil) -> StatusBadgeView {
     let row: NSStackView = NSStackView(frame: NSRect.zero)
     row.heightAnchor.constraint(equalToConstant: 22).isActive = true
     row.orientation = .horizontal
@@ -501,7 +502,7 @@ public func previewBadgeRow(_ view: NSStackView?, title: String, status: Bool? =
     return badgeView
 }
 
-public func previewRow(_ view: NSStackView?, space: Bool = true, color: NSColor? = nil, title: String = "", value: String = "") -> ValueField {
+@MainActor public func previewRow(_ view: NSStackView?, space: Bool = true, color: NSColor? = nil, title: String = "", value: String = "") -> ValueField {
     let row: NSStackView = NSStackView(frame: NSRect.zero)
     row.heightAnchor.constraint(equalToConstant: 22).isActive = true
     row.orientation = .horizontal
@@ -545,7 +546,7 @@ public extension Array where Element: Hashable {
     }
 }
 
-public func toggleNSControlState(_ control: NSControl?, state: NSControl.StateValue) {
+@MainActor public func toggleNSControlState(_ control: NSControl?, state: NSControl.StateValue) {
     if let checkbox = control as? NSSwitch {
         checkbox.state = state
     }
@@ -702,8 +703,10 @@ public func localizedString(_ key: String, _ params: String..., comment: String 
 
 public extension UnitTemperature {
     private static let systemLock = NSLock()
-    private static var systemCache: UnitTemperature? = nil
-    private static let localeObserver: NSObjectProtocol = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: nil) { _ in
+    // shortcut: every access is guarded by systemLock, revisit if this moves to Mutex/OSAllocatedUnfairLock.
+    nonisolated(unsafe) private static var systemCache: UnitTemperature? = nil
+    // shortcut: opaque observer token, written once and never read, revisit if it is ever used to remove the observer.
+    nonisolated(unsafe) private static let localeObserver: NSObjectProtocol = NotificationCenter.default.addObserver(forName: NSLocale.currentLocaleDidChangeNotification, object: nil, queue: nil) { _ in
         UnitTemperature.systemLock.lock()
         UnitTemperature.systemCache = nil
         UnitTemperature.systemLock.unlock()
@@ -844,7 +847,7 @@ internal func grayscaleImage(_ image: NSImage) -> NSImage? {
 }
 
 public class ViewCopy: CALayer {
-    public init(_ view: NSView) {
+    @MainActor public init(_ view: NSView) {
         super.init()
         
         guard let bitmap = view.bitmapImageRepForCachingDisplay(in: view.bounds) else { return }
@@ -919,7 +922,7 @@ public class AppIcon: NSImageView {
     }
 }
 
-public func controlState(_ sender: NSControl) -> Bool {
+@MainActor public func controlState(_ sender: NSControl) -> Bool {
     let state: NSControl.StateValue = sender is NSSwitch ? (sender as! NSSwitch).state : .off
     return state == .on
 }
@@ -947,7 +950,7 @@ public func iconFromSymbol(name: String, scale: IconScale) -> NSImage {
 }
 
 public func showAlert(_ message: String, _ information: String? = nil, _ style: NSAlert.Style = .informational) {
-    let show = {
+    let show: @MainActor @Sendable () -> Void = {
         let alert = NSAlert()
         alert.messageText = message
         if let information = information {
@@ -958,7 +961,7 @@ public func showAlert(_ message: String, _ information: String? = nil, _ style: 
         alert.runModal()
     }
     if Thread.isMainThread {
-        show()
+        MainActor.assumeIsolated(show)
     } else {
         DispatchQueue.main.async(execute: show)
     }
@@ -1196,7 +1199,10 @@ public func restartApp(_ sender: Any, afterDelay seconds: TimeInterval = 0.5) ->
     task.launchPath = "/bin/sh"
     task.arguments = ["-c", "sleep \(seconds); open \"$1\"", "stats-restart", Bundle.main.bundlePath]
     task.launch()
-    NSApp.terminate(sender)
+    // Only called from UI actions on the main thread.
+    // shortcut: sender is just forwarded to NSApp.terminate, revisit if restartApp is ever called off-main.
+    nonisolated(unsafe) let sender = sender
+    MainActor.assumeIsolated { NSApp.terminate(sender) }
     exit(0)
 }
 
@@ -1797,7 +1803,8 @@ public func process(path: String, arguments: [String], environment: [String: Str
         return nil
     }
     
-    var outputData = Data()
+    // shortcut: written only by the drain block below and read only after drained.wait() succeeds, revisit if that ordering changes.
+    nonisolated(unsafe) var outputData = Data()
     let drained = DispatchGroup()
     drained.enter()
     DispatchQueue.global(qos: .utility).async {

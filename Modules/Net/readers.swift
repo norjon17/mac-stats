@@ -95,8 +95,10 @@ internal class UsageReader: Reader<Network_Usage> {
 
         NotificationCenter.default.addObserver(self, selector: #selector(resetTotalNetworkUsage), name: .resetTotalNetworkUsage, object: nil)
 
-        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1) { [weak self] in
-            guard let self, self.active else { return }
+        // shortcut: Reader subclasses are not Sendable (same as Kit's Reader.readInBackground), revisit when Reader is made Sendable or an actor.
+        nonisolated(unsafe) weak let weakSelf = self
+        DispatchQueue.global(qos: .background).asyncAfter(deadline: .now() + 1) {
+            guard let self = weakSelf, self.active else { return }
             self.requestDetails(self.currentInterfaceID())
         }
 
@@ -119,8 +121,10 @@ internal class UsageReader: Reader<Network_Usage> {
     /// Called from settings when the interface selection changes: drop every cache and re-read immediately.
     public func refresh() {
         self.invalidateCaches()
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            self?.read()
+        // shortcut: Reader subclasses are not Sendable (same as Kit's Reader.readInBackground), revisit when Reader is made Sendable or an actor.
+        nonisolated(unsafe) weak let weakSelf = self
+        DispatchQueue.global(qos: .userInitiated).async {
+            weakSelf?.read()
         }
     }
 
@@ -438,8 +442,10 @@ internal class UsageReader: Reader<Network_Usage> {
         if Date().timeIntervalSince(self.lastDetailsReadTS) < self.cacheTTL { return }
 
         self.detailsInProgress = true
-        self.detailsQueue.async { [weak self] in
-            guard let self else { return }
+        // shortcut: Reader subclasses are not Sendable (same as Kit's Reader.readInBackground), revisit when Reader is made Sendable or an actor.
+        nonisolated(unsafe) weak let weakSelf = self
+        self.detailsQueue.async {
+            guard let self = weakSelf else { return }
             self.getDetails(interfaceID)
             self.detailsInProgress = false
         }
@@ -548,7 +554,7 @@ internal class UsageReader: Reader<Network_Usage> {
             var ip = [CChar](repeating: 0, count: Int(NI_MAXHOST))
             guard getnameinfo(ifaAddr, socklen_t(ifaAddr.pointee.sa_len), &ip, socklen_t(ip.count), nil, socklen_t(0), NI_NUMERICHOST) == 0 else { continue }
 
-            let ipStr = String(cString: ip)
+            let ipStr = ip.withUnsafeBufferPointer { String(cString: $0.baseAddress!) }
             guard !ipStr.isEmpty else { continue }
 
             if family == UInt8(AF_INET) {
